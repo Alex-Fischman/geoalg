@@ -1,0 +1,11 @@
+[package]
+name = "geoalg"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+skulpin = { version = "0.14", features = ["winit-app", "winit-latest"]}
+
+[profile.dev.package.rafx-api]
+debug = false
+debug-assertions = false
