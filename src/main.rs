@@ -1,8 +1,12 @@
 mod vector;
+
 use skulpin::skia_safe::*;
-use vector::{Vector, X, Y};
+use vector::{Vector, I, X, Y};
 
 fn main() {
+	assert_eq!(X ^ Y, I);
+	assert_eq!(Y ^ X, -1.0 * I);
+
 	let scale = 5.0;
 	let vs = vec![
 		(X, Color::RED, Some(("x".to_string(), (0.1 * Y).to_point()))),
