@@ -1,69 +1,29 @@
 mod vector;
 use skulpin::skia_safe::*;
-use vector::{Multivector, I, S, X, Y};
+use vector::{Vector, X, Y};
 
 fn main() {
-	let a = 3.0 * X + 4.0 * Y;
-	let b = X + X - Y;
-	let u = 1.0 * S + 2.0 * X + 3.0 * Y + 4.0 * I;
-	let v = 5.0 * S - 3.0 * X + 6.0 * Y + 2.0 * I;
-	let w = 2.0 * S + 1.0 * X - 7.0 * Y - 3.0 * I;
+	let scale = 5.0;
+	let vs = vec![
+		(X, Color::RED, Some(("x".to_string(), (0.1 * Y).to_point()))),
+		(
+			Y,
+			Color::BLUE,
+			Some(("y".to_string(), (-0.1 * X).to_point())),
+		),
+		(X - Y, Color::GREEN, None),
+	];
 
-	assert_eq!(u * (v + w), u * v + u * w);
-	assert_eq!((v + w) * u, v * u + w * u);
-	assert_eq!((-1.5 * u) * v, u * (-1.5 * v));
-	assert_eq!(u * (v * w), (u * v) * w);
-	assert_eq!(1.0 * u, u);
-
-	assert_eq!(u, u.inv().inv());
-	assert_eq!(u * u.inv(), S);
-	assert_eq!(u * u.inv(), u.inv() * u);
-
-	assert_eq!(a * a, a | a);
-	assert_eq!(a * b, (a | b) + (a ^ b));
-	assert_eq!(a.inv(), a * (a | a).inv());
-
-	assert_eq!(X ^ Y, -1.0 * Y ^ X);
-	assert_eq!(I * I, -1.0 * S);
-
-	assert_eq!(I.inv(), -I);
-	assert_eq!(u.dual(), u * I.inv());
-
-	assert_eq!(u | v, v | u); // for all multivectors
-	assert_eq!(a ^ I, -I ^ a); // for non-multi-vectors
-	assert_eq!(a ^ b, -(b ^ a)); // for vectors only?
-	assert_eq!(a ^ (b ^ a), (a ^ b) ^ a); // for vectors only?
-
-	assert_eq!((a | b).dual(), a ^ b.dual()); // for vectors only?
-	assert_eq!((a ^ b).dual(), a | b.dual()); // for vectors only?
-
-	let r = Multivector::rotor(std::f32::consts::PI * 3.0 / 2.0);
-	let vw = X * (Y - X);
 	skulpin::app::AppBuilder::new()
 		.coordinate_system(skulpin::CoordinateSystem::VisibleRange(
-			Rect::new(-1.0, 1.0, 1.0, -1.0),
+			Rect::new(-scale, scale, scale, -scale),
 			skulpin::skia_safe::matrix::ScaleToFit::Center,
 		))
-		.run(App {
-			vs: vec![
-				(X, Color::RED),
-				(X << vw, Color::GREEN),
-				(X << r, Color::BLUE),
-			],
-		});
-}
-
-fn paint_color(color: Color) -> Color4f {
-	Color4f::new(
-		color.r() as f32 / 255.0,
-		color.g() as f32 / 255.0,
-		color.b() as f32 / 255.0,
-		color.a() as f32 / 255.0,
-	)
+		.run(App { vs });
 }
 
 struct App {
-	vs: Vec<(Multivector, Color)>,
+	vs: Vec<(Vector, Color, Option<(String, Point)>)>,
 }
 
 impl skulpin::app::AppHandler for App {
@@ -73,36 +33,61 @@ impl skulpin::app::AppHandler for App {
 
 	fn draw(&mut self, draw_args: skulpin::app::AppDrawArgs) {
 		let canvas = draw_args.canvas;
+		let b = canvas.local_clip_bounds().unwrap();
 		canvas.clear(Color::WHITE);
 
-		let mut paint = Paint::new(paint_color(Color::RED), None);
-		paint.set_anti_alias(true);
-		paint.set_stroke_width(0.01);
-
-		let _font = Font::new(
-			Typeface::new(
-				"Computer Modern",
-				FontStyle::new(
-					font_style::Weight::NORMAL,
-					font_style::Width::NORMAL,
-					font_style::Slant::Upright,
-				),
-			)
-			.unwrap(),
-			Some(24.0),
+		let font = Font::new(
+			Typeface::new("Computer Modern", FontStyle::normal()).unwrap(),
+			Some(18.0),
 		);
 
-		for (v, color) in &self.vs {
-			paint.set_color(*color);
-			paint.set_style(paint::Style::Stroke);
-			let tip = Point::new(v.x, v.y);
-			canvas.draw_line(Point::new(0.0, 0.0), tip, &paint);
-			let angle = f32::atan2(tip.y, tip.x) + 0.5;
-			let head = Point::new(angle.cos(), angle.sin()).scaled(0.1);
-			canvas.draw_line(tip, tip - head, &paint);
-			let angle = f32::atan2(tip.y, tip.x) - 0.5;
-			let head = Point::new(angle.cos(), angle.sin()).scaled(0.1);
-			canvas.draw_line(tip, tip - head, &paint);
+		let mut paint = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
+
+		paint.set_style(paint::Style::Stroke);
+		paint.set_stroke_width(0.01);
+		paint.set_color(Color::GRAY);
+		for i in b.left.floor() as i32..b.right.floor() as i32 + 1 {
+			canvas.draw_line(
+				Point::new(i as f32, b.bottom),
+				Point::new(i as f32, b.top),
+				&paint,
+			);
 		}
+		for i in b.top.floor() as i32..b.bottom.floor() as i32 + 1 {
+			canvas.draw_line(
+				Point::new(b.left, i as f32),
+				Point::new(b.right, i as f32),
+				&paint,
+			);
+		}
+		paint.set_color(Color::BLACK);
+		canvas.draw_line(Point::new(b.left, 0.0), Point::new(b.right, 0.0), &paint);
+		canvas.draw_line(Point::new(0.0, b.bottom), Point::new(0.0, b.top), &paint);
+
+		paint.set_stroke_width(0.025);
+		for (v, color, label) in &self.vs {
+			paint.set_style(paint::Style::Stroke);
+			paint.set_color(*color);
+			let tip = v.to_point();
+			canvas.draw_line(Point::new(0.0, 0.0), tip, &paint);
+			let a = f32::atan2(tip.y, tip.x) + 0.5;
+			canvas.draw_line(tip, tip - Point::new(a.cos(), a.sin()).scaled(0.1), &paint);
+			let a = f32::atan2(tip.y, tip.x) - 0.5;
+			canvas.draw_line(tip, tip - Point::new(a.cos(), a.sin()).scaled(0.1), &paint);
+			if let Some((string, offset)) = label {
+				paint.set_style(paint::Style::Fill);
+				let origin = canvas.local_to_device_as_3x3().map_point(tip / 2.0 + *offset);
+				let r = font.measure_str(string, Some(&paint)).1;
+				let offset = Point::new(r.width(), -r.height()) / 2.0;
+				canvas.save();
+				canvas.reset_matrix();
+				canvas.draw_str(string, origin - offset, &font, &paint);
+				canvas.restore();
+			}
+		}
+
+		paint.set_style(paint::Style::Fill);
+		paint.set_color(Color::BLACK);
+		canvas.draw_circle(Point::new(0.0, 0.0), 0.05, &paint);
 	}
 }
