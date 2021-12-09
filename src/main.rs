@@ -14,36 +14,19 @@ fn main() {
 	assert_eq!(E31 | E23, 0.0);
 	assert_eq!(E23 & E12, E2);
 
-	let v = |x, y| x * E1 + y * E2 + E3;
-	let label = |s: &str, x, y| Some((s.to_string(), Point::new(x, y)));
+	let o = E3;
+	let p = o + 4.0 * E1 + 3.0 * E2;
 
-	let a = v(1.0, 2.0);
-	let b = v(-2.0, 3.0);
-	let c = v(-4.0, -3.0);
-
-	let ab = a ^ b;
-	let bc = b ^ c;
-	let ca = c ^ a;
+	println!("{:?}", p | o);
 
 	let scale = 5.0;
-	let vectors = vec![
-		(a, Color::RED, label("a", 0.0, 0.2)),
-		(b, Color::GREEN, label("b", 0.0, -0.2)),
-		(c, Color::BLUE, label("c", 0.2, 0.0)),
-	];
-	let bivectors = vec![
-		(ab, Color::RED, label("ab", -0.2, 2.6)),
-		(bc, Color::GREEN, label("bc", -3.2, 0.2)),
-		(ca, Color::BLUE, label("ca", -1.2, 0.2)),
-	];
-
 	skulpin::app::AppBuilder::new()
 		.coordinate_system(skulpin::CoordinateSystem::VisibleRange(
 			Rect::new(-scale, scale, scale, -scale),
 			skulpin::skia_safe::matrix::ScaleToFit::Center,
 		))
 		.window_title("Geometric Algebra")
-		.run(App { vectors, bivectors });
+		.run(App::new());
 }
 
 struct App {
@@ -51,8 +34,32 @@ struct App {
 	bivectors: Vec<(Bivector, Color, Option<(String, Point)>)>,
 }
 
+impl App {
+	fn new() -> App {
+		App { vectors: vec![], bivectors: vec![] }
+	}
+}
+
 impl skulpin::app::AppHandler for App {
-	fn update(&mut self, _update_args: skulpin::app::AppUpdateArgs) {}
+	fn update(&mut self, _update_args: skulpin::app::AppUpdateArgs) {
+		let v = |x, y| x * E1 + y * E2 + E3;
+		let label = |s: &str, x, y| Some((s.to_string(), Point::new(x, y)));
+
+		let a = v(1.0, 2.0);
+		let b = v(-2.0, 3.0);
+		let ab = a ^ b;
+
+		self.vectors = vec![
+			(a, Color::RED, label("a", 0.0, 0.2)),
+			(b, Color::GREEN, label("b", 0.0, -0.2)),
+		];
+
+		self.bivectors = vec![
+			(ab, Color::BLUE, label("ab", 0.2, 0.2)),
+			(!a, Color::RED, label("!a", 0.2, 0.2)),
+			(!b, Color::GREEN, label("!b", -0.2, 0.2)),
+		];
+	}
 
 	fn fatal_error(&mut self, _error: &skulpin::app::AppError) {}
 
@@ -96,16 +103,20 @@ impl skulpin::app::AppHandler for App {
 			let rt = b.right() * E1 + b.top() * E2 + E3;
 			let lb = b.left() * E1 + b.bottom() * E2 + E3;
 			let rb = b.right() * E1 + b.bottom() * E2 + E3;
-			let ps: Vec<Point> = vec![lt ^ rt, lb ^ rb, lt ^ lb, rt ^ rb]
-				.into_iter()
-				.map(|edge| edge & *bv)
+			let mut ps: Vec<Point> = vec![lt ^ rt, lb ^ rb, lt ^ lb, rt ^ rb]
+				.iter()
+				.map(|edge| *edge & *bv)
 				.filter_map(Vector::to_point)
 				.collect();
+			ps.sort_by(|a, b| {
+				a.length().partial_cmp(&b.length()).unwrap_or(std::cmp::Ordering::Equal)
+			});
 			if ps.len() >= 2 {
 				canvas.draw_line(ps[0], ps[1], &paint);
-				if let Some((string, position)) = label {
+				if let Some((string, offset)) = label {
 					paint.set_style(paint::Style::Fill);
-					let origin = canvas.local_to_device_as_3x3().map_point(*position);
+					let midpoint = (ps[0] + ps[1]) / 2.0;
+					let origin = canvas.local_to_device_as_3x3().map_point(midpoint + *offset);
 					let r = font.measure_str(string, Some(&paint)).1;
 					let offset = Point::new(r.width(), -r.height()) / 2.0;
 					canvas.save();
