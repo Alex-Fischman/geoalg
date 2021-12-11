@@ -6,22 +6,19 @@ pub type Scalar = f32;
 pub struct Vector {
 	e1: Scalar,
 	e2: Scalar,
-	e3: Scalar,
+	e3: bool,
 }
 
-pub const E1: Vector = Vector { e1: 1.0, e2: 0.0, e3: 0.0 };
-pub const E2: Vector = Vector { e1: 0.0, e2: 1.0, e3: 0.0 };
-pub const E3: Vector = Vector { e1: 0.0, e2: 0.0, e3: 1.0 };
+pub const E1: Vector = Vector { e1: 1.0, e2: 0.0, e3: true };
+pub const E2: Vector = Vector { e1: 0.0, e2: 1.0, e3: true };
+pub const E3: Vector = Vector { e1: 0.0, e2: 0.0, e3: false };
 
 impl Vector {
 	pub fn to_point(self) -> Option<skulpin::skia_safe::Point> {
-		if self.e3 == 0.0 {
+		if self.e3 {
 			None
 		} else {
-			Some(skulpin::skia_safe::Point::new(
-				self.e1 / self.e3,
-				self.e2 / self.e3,
-			))
+			Some(skulpin::skia_safe::Point::new(self.e1, self.e2))
 		}
 	}
 }
@@ -29,44 +26,56 @@ impl Vector {
 impl Add for Vector {
 	type Output = Vector;
 	fn add(self, other: Vector) -> Vector {
-		Vector { e1: self.e1 + other.e1, e2: self.e2 + other.e2, e3: self.e3 + other.e3 }
+		match (self.e3, other.e3) {
+			(false, false) => Vector {
+				e1: (self.e1 + other.e1) / 2.0,
+				e2: (self.e2 + other.e2) / 2.0,
+				e3: false,
+			},
+			(true, true) => Vector { e1: self.e1 + other.e1, e2: self.e2 + other.e2, e3: true },
+			(false, true) | (true, false) => {
+				Vector { e1: self.e1 + other.e1, e2: self.e2 + other.e2, e3: false }
+			}
+		}
 	}
 }
 
 impl Mul<Vector> for Scalar {
 	type Output = Vector;
 	fn mul(self, other: Vector) -> Vector {
-		Vector { e1: self * other.e1, e2: self * other.e2, e3: self * other.e3 }
+		Vector { e1: self * other.e1, e2: self * other.e2, e3: other.e3 }
 	}
 }
 
 impl Neg for Vector {
 	type Output = Vector;
 	fn neg(self) -> Vector {
-		Vector { e1: -self.e1, e2: -self.e2, e3: -self.e3 }
+		self
 	}
 }
 
 impl Sub for Vector {
 	type Output = Vector;
 	fn sub(self, other: Vector) -> Vector {
-		Vector { e1: self.e1 - other.e1, e2: self.e2 - other.e2, e3: self.e3 - other.e3 }
+		self + -1.0 * other
 	}
 }
 
 impl BitOr for Vector {
 	type Output = Scalar;
 	fn bitor(self, other: Vector) -> Scalar {
-		self.e1 * other.e1 + self.e2 * other.e2 + self.e3 * other.e3
+		self.e1 * other.e1 + self.e2 * other.e2
 	}
 }
 
 impl BitXor for Vector {
 	type Output = Bivector;
 	fn bitxor(self, other: Vector) -> Bivector {
+		let a = if self.e3 { 0.0 } else { 1.0 };
+		let b = if other.e3 { 0.0 } else { 1.0 };
 		Bivector {
-			e23: self.e2 * other.e3 - self.e3 * other.e2,
-			e31: self.e3 * other.e1 - self.e1 * other.e3,
+			e23: self.e2 * b - a * other.e2,
+			e31: a * other.e1 - self.e1 * b,
 			e12: self.e1 * other.e2 - self.e2 * other.e1,
 		}
 	}
@@ -75,7 +84,10 @@ impl BitXor for Vector {
 impl Not for Vector {
 	type Output = Bivector;
 	fn not(self) -> Bivector {
-		Bivector { e23: -self.e1, e31: -self.e2, e12: -self.e3 }
+		match self.e3 {
+			false => Bivector { e23: -self.e1, e31: -self.e2, e12: -1.0 },
+			true => Bivector { e23: -self.e1, e31: -self.e2, e12: 0.0 },
+		}
 	}
 }
 
@@ -143,6 +155,10 @@ impl BitAnd for Bivector {
 impl Not for Bivector {
 	type Output = Vector;
 	fn not(self) -> Vector {
-		Vector { e1: -self.e23, e2: -self.e31, e3: -self.e12 }
+		if self.e12 == 0.0 {
+			Vector { e1: self.e23, e2: self.e31, e3: true }
+		} else {
+			Vector { e1: self.e23 / self.e12, e2: self.e31 / self.e12, e3: false }
+		}
 	}
 }

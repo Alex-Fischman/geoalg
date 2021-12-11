@@ -12,7 +12,7 @@ fn main() {
 	assert_eq!(!E31, -E2);
 	assert_eq!(E31 | E31, -1.0);
 	assert_eq!(E31 | E23, 0.0);
-	assert_eq!(E23 & E12, E2);
+	assert_eq!(E12 & E23, E2);
 
 	let scale = 5.0;
 	skulpin::app::AppBuilder::new()
@@ -56,17 +56,15 @@ impl skulpin::app::AppHandler for App {
 			(a, Color::RED, label("a", 0.0, 0.2)),
 			(b, Color::GREEN, label("b", 0.0, -0.2)),
 			(a + b, Color::CYAN, label("a+b", 0.0, 0.2)),
-			(!(a^b), Color::BLUE, label("!(a^b)", 0.0, -0.2))
+			(!(a ^ b), Color::BLUE, label("!(a^b)", 0.0, -0.2)),
 		];
 		let bivectors = vec![
-			(a^b, Color::BLUE, label("a^b", 0.4, 0.2)),
+			(a ^ b, Color::BLUE, label("a^b", 0.4, 0.2)),
 			(!a, Color::RED, label("!a", 0.4, 0.2)),
 			(!b, Color::GREEN, label("!b", 0.4, 0.2)),
 			((!a) + (!b), Color::CYAN, label("!a+!b", 0.4, 0.2)),
-			(!(a + b), Color::YELLOW, label("!(a+b)", 0.3, 0.2)),
 		];
 
-		
 		let b = canvas.local_clip_bounds().unwrap();
 		let font = Font::new(
 			Typeface::new("Computer Modern", FontStyle::normal()).unwrap(),
