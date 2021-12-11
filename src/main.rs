@@ -1,7 +1,7 @@
 mod vector;
 
 use skulpin::skia_safe::*;
-use vector::{Bivector, Vector, E1, E12, E2, E23, E3, E31};
+use vector::{E1, E12, E2, E23, E3, E31};
 
 fn main() {
 	assert_eq!(E1 - E1, E2 - E2);
@@ -14,11 +14,6 @@ fn main() {
 	assert_eq!(E31 | E23, 0.0);
 	assert_eq!(E23 & E12, E2);
 
-	let o = E3;
-	let p = o + 4.0 * E1 + 3.0 * E2;
-
-	println!("{:?}", p | o);
-
 	let scale = 5.0;
 	skulpin::app::AppBuilder::new()
 		.coordinate_system(skulpin::CoordinateSystem::VisibleRange(
@@ -30,51 +25,56 @@ fn main() {
 }
 
 struct App {
-	vectors: Vec<(Vector, Color, Option<(String, Point)>)>,
-	bivectors: Vec<(Bivector, Color, Option<(String, Point)>)>,
+	mouse: Point,
 }
 
 impl App {
 	fn new() -> App {
-		App { vectors: vec![], bivectors: vec![] }
+		App { mouse: Point::new(0.0, 0.0) }
 	}
 }
 
 impl skulpin::app::AppHandler for App {
-	fn update(&mut self, _update_args: skulpin::app::AppUpdateArgs) {
-		let v = |x, y| x * E1 + y * E2 + E3;
-		let label = |s: &str, x, y| Some((s.to_string(), Point::new(x, y)));
-
-		let a = v(1.0, 2.0);
-		let b = v(-2.0, 3.0);
-		let ab = a ^ b;
-
-		self.vectors = vec![
-			(a, Color::RED, label("a", 0.0, 0.2)),
-			(b, Color::GREEN, label("b", 0.0, -0.2)),
-		];
-
-		self.bivectors = vec![
-			(ab, Color::BLUE, label("ab", 0.2, 0.2)),
-			(!a, Color::RED, label("!a", 0.2, 0.2)),
-			(!b, Color::GREEN, label("!b", -0.2, 0.2)),
-		];
+	fn update(&mut self, update_args: skulpin::app::AppUpdateArgs) {
+		if update_args.input_state.is_mouse_down(skulpin::app::MouseButton::Left) {
+			let p = update_args.input_state.mouse_position();
+			self.mouse = Point::new(p.x as f32, p.y as f32);
+		}
 	}
 
 	fn fatal_error(&mut self, _error: &skulpin::app::AppError) {}
 
 	fn draw(&mut self, draw_args: skulpin::app::AppDrawArgs) {
 		let canvas = draw_args.canvas;
-		let b = canvas.local_clip_bounds().unwrap();
-		canvas.clear(Color::WHITE);
 
+		let mouse = canvas.local_to_device_as_3x3().invert().unwrap().map_point(self.mouse);
+		let a = mouse.x * E1 + mouse.y * E2 + E3;
+		let b = -2.0 * E1 + 3.0 * E2 + E3;
+
+		let label = |s: &str, x, y| Some((s.to_string(), Point::new(x, y)));
+		let vectors = vec![
+			(a, Color::RED, label("a", 0.0, 0.2)),
+			(b, Color::GREEN, label("b", 0.0, -0.2)),
+			(a + b, Color::CYAN, label("a+b", 0.0, 0.2)),
+			(!(a^b), Color::BLUE, label("!(a^b)", 0.0, -0.2))
+		];
+		let bivectors = vec![
+			(a^b, Color::BLUE, label("a^b", 0.4, 0.2)),
+			(!a, Color::RED, label("!a", 0.4, 0.2)),
+			(!b, Color::GREEN, label("!b", 0.4, 0.2)),
+			((!a) + (!b), Color::CYAN, label("!a+!b", 0.4, 0.2)),
+			(!(a + b), Color::YELLOW, label("!(a+b)", 0.3, 0.2)),
+		];
+
+		
+		let b = canvas.local_clip_bounds().unwrap();
 		let font = Font::new(
 			Typeface::new("Computer Modern", FontStyle::normal()).unwrap(),
 			Some(18.0),
 		);
-
 		let mut paint = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
 
+		canvas.clear(Color::WHITE);
 		paint.set_style(paint::Style::Stroke);
 		paint.set_stroke_width(0.01);
 		paint.set_color(Color::GRAY);
@@ -97,16 +97,16 @@ impl skulpin::app::AppHandler for App {
 		canvas.draw_line(Point::new(0.0, b.bottom), Point::new(0.0, b.top), &paint);
 
 		paint.set_stroke_width(0.025);
-		for (bv, color, label) in &self.bivectors {
-			paint.set_color(*color);
+		for (bv, color, label) in bivectors {
+			paint.set_color(color);
 			let lt = b.left() * E1 + b.top() * E2 + E3;
 			let rt = b.right() * E1 + b.top() * E2 + E3;
 			let lb = b.left() * E1 + b.bottom() * E2 + E3;
 			let rb = b.right() * E1 + b.bottom() * E2 + E3;
 			let mut ps: Vec<Point> = vec![lt ^ rt, lb ^ rb, lt ^ lb, rt ^ rb]
 				.iter()
-				.map(|edge| *edge & *bv)
-				.filter_map(Vector::to_point)
+				.map(|edge| *edge & bv)
+				.filter_map(|v| v.to_point())
 				.collect();
 			ps.sort_by(|a, b| {
 				a.length().partial_cmp(&b.length()).unwrap_or(std::cmp::Ordering::Equal)
@@ -115,9 +115,12 @@ impl skulpin::app::AppHandler for App {
 				canvas.draw_line(ps[0], ps[1], &paint);
 				if let Some((string, offset)) = label {
 					paint.set_style(paint::Style::Fill);
-					let midpoint = (ps[0] + ps[1]) / 2.0;
-					let origin = canvas.local_to_device_as_3x3().map_point(midpoint + *offset);
-					let r = font.measure_str(string, Some(&paint)).1;
+					let dir = ps[1] - ps[0];
+					let mut nor = Point::new(dir.y, -dir.x);
+					nor.set_length(offset.y);
+					let midpoint = ps[0] + dir.scaled(offset.x) + nor;
+					let origin = canvas.local_to_device_as_3x3().map_point(midpoint);
+					let r = font.measure_str(&string, Some(&paint)).1;
 					let offset = Point::new(r.width(), -r.height()) / 2.0;
 					canvas.save();
 					canvas.reset_matrix();
@@ -129,13 +132,13 @@ impl skulpin::app::AppHandler for App {
 		}
 
 		paint.set_style(paint::Style::Fill);
-		for (v, color, label) in &self.vectors {
+		for (v, color, label) in vectors {
 			if let Some(tip) = v.to_point() {
-				paint.set_color(*color);
+				paint.set_color(color);
 				canvas.draw_circle(tip, 0.05, &paint);
 				if let Some((string, position)) = label {
-					let origin = canvas.local_to_device_as_3x3().map_point(tip + *position);
-					let r = font.measure_str(string, Some(&paint)).1;
+					let origin = canvas.local_to_device_as_3x3().map_point(tip + position);
+					let r = font.measure_str(&string, Some(&paint)).1;
 					let offset = Point::new(r.width(), -r.height()) / 2.0;
 					canvas.save();
 					canvas.reset_matrix();

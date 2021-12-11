@@ -1,6 +1,6 @@
 use std::ops::*;
 
-type Scalar = f32;
+pub type Scalar = f32;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Vector {
