@@ -1,18 +1,22 @@
-mod vector;
+mod pga;
 
+use pga::*;
 use skulpin::skia_safe::*;
-use vector::{E1, E12, E2, E23, E3, E31};
 
 fn main() {
 	assert_eq!(E1 - E1, E2 - E2);
-	assert_eq!(E1 | E2, 0.0);
-	assert_eq!(E2 ^ E3, E23);
-	assert_eq!(E2 ^ E1, -E12);
-	assert_eq!(!E1, -E23);
-	assert_eq!(!E31, E2);
-	assert_eq!(E31 | E31, -1.0);
-	assert_eq!(E31 | E23, 0.0);
-	assert_eq!(E12 & E23, E2);
+	assert_eq!(E1 | E2, Z);
+	assert_eq!(e2 ^ e0, E1);
+	assert_eq!(e2 ^ e1, -E0);
+	assert_eq!(!E1, e1);
+	assert_eq!(!e2, E2);
+	assert_eq!(e2 | e2, S);
+	assert_eq!(e2 | e1, Z);
+	assert_eq!(E0 & E1, e2);
+
+	assert_eq!(2.0 * e0 * e1, 2.0 * E2);
+	assert_eq!(!e1, E1);
+	assert_eq!(!E0, e0);
 
 	let scale = 5.0;
 	skulpin::app::AppBuilder::new()
@@ -48,21 +52,21 @@ impl skulpin::app::AppHandler for App {
 		let canvas = draw_args.canvas;
 
 		let mouse = canvas.local_to_device_as_3x3().invert().unwrap().map_point(self.mouse);
-		let a = mouse.x * E1 + mouse.y * E2 + E3;
-		let b = -2.0 * E1 + 3.0 * E2 + E3;
+		let a = mouse.x * E1 + mouse.y * E2 + E0;
+		let b = -2.0 * E1 + 3.0 * E2 + E0;
 
 		let label = |s: &str, x, y| Some((s.to_string(), Point::new(x, y)));
 		let vectors = vec![
 			(a, Color::RED, label("a", 0.0, 0.2)),
 			(b, Color::GREEN, label("b", 0.0, -0.2)),
 			(a + b, Color::CYAN, label("a+b", 0.0, 0.2)),
-			(!(a ^ b), Color::BLUE, label("!(a^b)", 0.0, -0.2)),
+			(!(a & b), Color::BLUE, label("!(a^b)", 0.0, -0.2)),
 		];
-		let bivectors = vec![
-			(a ^ b, Color::BLUE, label("a^b", 0.4, 0.2)),
+		let bivectors: Vec<(Multivector, Color, Option<(String, Point)>)> = vec![
+			(a & b, Color::BLUE, label("a^b", 0.4, 0.2)),
 			(!a, Color::RED, label("!a", 0.4, 0.2)),
 			(!b, Color::GREEN, label("!b", 0.4, 0.2)),
-			((!a) + (!b), Color::CYAN, label("!a+!b", 0.4, 0.2)),
+			(!a + !b, Color::CYAN, label("!a+!b", 0.4, 0.2)),
 		];
 
 		let b = canvas.local_clip_bounds().unwrap();
@@ -97,15 +101,16 @@ impl skulpin::app::AppHandler for App {
 		paint.set_stroke_width(0.025);
 		for (bv, color, label) in bivectors {
 			paint.set_color(color);
-			let lt = b.left() * E1 + b.top() * E2 + E3;
-			let rt = b.right() * E1 + b.top() * E2 + E3;
-			let lb = b.left() * E1 + b.bottom() * E2 + E3;
-			let rb = b.right() * E1 + b.bottom() * E2 + E3;
-			let mut ps: Vec<Point> = vec![lt ^ rt, lb ^ rb, lt ^ lb, rt ^ rb]
-				.iter()
-				.map(|edge| *edge & bv)
-				.filter_map(|v| v.to_point())
-				.collect();
+			let mut ps: Vec<Point> = vec![
+				1.0 / b.top() * e2,
+				1.0 / b.bottom() * e2,
+				1.0 / b.left() * e1,
+				1.0 / b.right() * e1,
+			]
+			.into_iter()
+			.map(|edge| (edge + e0) ^ bv)
+			.filter_map(|v| v.to_point())
+			.collect();
 			ps.sort_by(|a, b| {
 				a.length().partial_cmp(&b.length()).unwrap_or(std::cmp::Ordering::Equal)
 			});
