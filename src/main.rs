@@ -9,7 +9,7 @@ fn main() {
 	assert_eq!(E2 ^ E3, E23);
 	assert_eq!(E2 ^ E1, -E12);
 	assert_eq!(!E1, -E23);
-	assert_eq!(!E31, -E2);
+	assert_eq!(!E31, E2);
 	assert_eq!(E31 | E31, -1.0);
 	assert_eq!(E31 | E23, 0.0);
 	assert_eq!(E12 & E23, E2);
