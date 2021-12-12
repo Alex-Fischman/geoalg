@@ -49,7 +49,7 @@ pub const I: Multivector = Multivector { I: 1.0, ..Z };
 
 impl Multivector {
 	pub fn to_point(self) -> Option<skulpin::skia_safe::Point> {
-		if self.grade() == 2 {
+		if self.grade() == Some(2) {
 			Some(skulpin::skia_safe::Point::new(
 				self.E1 / self.E0,
 				self.E2 / self.E0,
@@ -135,19 +135,8 @@ impl Sub for Multivector {
 	}
 }
 
-impl Mul for Multivector {
-	type Output = Multivector;
-	fn mul(self, other: Multivector) -> Multivector {
-		let cayley = [
-			[S, e0, e1, e2, E0, E1, E2, I],
-			[e0, Z, E2, -E1, I, Z, Z, Z],
-			[e1, -E2, S, E0, e2, I, -e0, E1],
-			[e2, E1, -E0, S, -e1, e0, I, E2],
-			[E0, I, -e2, e1, -S, -E2, E1, -e0],
-			[E1, Z, I, -e0, E2, Z, Z, Z],
-			[E2, Z, e0, I, -E1, Z, Z, Z],
-			[I, Z, E1, E2, -e0, Z, Z, Z],
-		];
+impl Multivector {
+	fn product(self, other: Multivector, cayley: [[Multivector; 8]; 8]) -> Multivector {
 		self.into_iter()
 			.enumerate()
 			.map(|(i, a)| {
@@ -163,31 +152,37 @@ impl Mul for Multivector {
 	}
 }
 
+impl Mul for Multivector {
+	type Output = Multivector;
+	fn mul(self, other: Multivector) -> Multivector {
+		self.product(other, [
+			[S, e0, e1, e2, E0, E1, E2, I],
+			[e0, Z, E2, -E1, I, Z, Z, Z],
+			[e1, -E2, S, E0, e2, I, -e0, E1],
+			[e2, E1, -E0, S, -e1, e0, I, E2],
+			[E0, I, -e2, e1, -S, -E2, E1, -e0],
+			[E1, Z, I, -e0, E2, Z, Z, Z],
+			[E2, Z, e0, I, -E1, Z, Z, Z],
+			[I, Z, E1, E2, -e0, Z, Z, Z],
+		])
+	}
+}
+
 type Grade = i32;
 
 impl Multivector {
-	fn grade(self) -> Grade {
+	fn grade(self) -> Option<Grade> {
 		let has_scalar = self.s != 0.0;
 		let has_vector = self.e0 != 0.0 || self.e1 != 0.0 || self.e2 != 0.0;
 		let has_bivector = self.E0 != 0.0 || self.E1 != 0.0 || self.E2 != 0.0;
 		let has_trivector = self.I != 0.0;
 		match (has_scalar, has_vector, has_bivector, has_trivector) {
-			(true, false, false, false) => 0,
-			(false, true, false, false) => 1,
-			(false, false, true, false) => 2,
-			(false, false, false, true) => 3,
-			(false, false, false, false) => 0,
-			_ => panic!("{:?} has multiple grades", self),
-		}
-	}
-
-	fn component(self, grade: Grade) -> Multivector {
-		match grade {
-			0 => self.s * S,
-			1 => self.e0 * e0 + self.e1 * e1 + self.e2 * e2,
-			2 => self.E0 * E0 + self.E1 * E1 + self.E2 * E2,
-			3 => self.I * I,
-			_ => Z,
+			(true, false, false, false) => Some(0),
+			(false, true, false, false) => Some(1),
+			(false, false, true, false) => Some(2),
+			(false, false, false, true) => Some(3),
+			(false, false, false, false) => Some(0),
+			_ => None,
 		}
 	}
 }
@@ -195,23 +190,41 @@ impl Multivector {
 impl BitOr for Multivector {
 	type Output = Multivector;
 	fn bitor(self, other: Multivector) -> Multivector {
-		(self * other).component(other.grade() - self.grade())
+		self.product(other, [
+			[S, Z, Z, Z, Z, Z, Z, Z],
+			[e0, Z, Z, Z, Z, Z, Z, Z],
+			[e1, Z, S, Z, Z, Z, Z, Z],
+			[e2, Z, Z, S, Z, Z, Z, Z],
+			[E0, Z, -e2, e1, -S, Z, Z, Z],
+			[E1, Z, Z, -e0, Z, Z, Z, Z],
+			[E2, Z, e0, Z, Z, Z, Z, Z],
+			[I, Z, E1, E2, -e0, Z, Z, Z],
+		])
 	}
 }
 
 impl BitXor for Multivector {
 	type Output = Multivector;
 	fn bitxor(self, other: Multivector) -> Multivector {
-		(self * other).component(other.grade() + self.grade())
+		self.product(other, [
+			[S, e0, e1, e2, E0, E1, E2, I],
+			[e0, Z, E2, -E1, I, Z, Z, Z],
+			[e1, -E2, Z, E0, Z, I, Z, Z],
+			[e2, E1, -E0, Z, Z, Z, I, Z],
+			[E0, I, Z, Z, Z, Z, Z, Z],
+			[E1, Z, I, Z, Z, Z, Z, Z],
+			[E2, Z, Z, I, Z, Z, Z, Z],
+			[I, Z, Z, Z, Z, Z, Z, Z],
+		])
 	}
 }
 
 impl Not for Multivector {
 	type Output = Multivector;
 	fn not(self) -> Multivector {
-		if self.grade() == 1 {
+		if self.grade() == Some(1) {
 			self.e0 * E0 + self.e1 * E1 + self.e2 * E2
-		} else if self.grade() == 2 {
+		} else if self.grade() == Some(2) {
 			self.E0 * e0 + self.E1 * e1 + self.E2 * e2
 		} else {
 			todo!();

@@ -13,10 +13,7 @@ fn main() {
 	assert_eq!(e2 | e2, S);
 	assert_eq!(e2 | e1, Z);
 	assert_eq!(E0 & E1, e2);
-
 	assert_eq!(2.0 * e0 * e1, 2.0 * E2);
-	assert_eq!(!e1, E1);
-	assert_eq!(!E0, e0);
 
 	let scale = 5.0;
 	skulpin::app::AppBuilder::new()
@@ -52,8 +49,8 @@ impl skulpin::app::AppHandler for App {
 		let canvas = draw_args.canvas;
 
 		let mouse = canvas.local_to_device_as_3x3().invert().unwrap().map_point(self.mouse);
-		let a = mouse.x * e1 + mouse.y * e2 + e0;
-		let b = mouse.x * e1 + mouse.y * e2;
+		let a = mouse.y * e2 + e0;
+		let b = e1;
 		let c = E1 + E2 + E0;
 
 		let label = |s: &str, x, y| Some((s.to_string(), Point::new(x, y)));
@@ -62,8 +59,9 @@ impl skulpin::app::AppHandler for App {
 			((a * b) >> c, Color::BLUE, label("transformed c", 0.0, 0.2)),
 		];
 		let bivectors: Vec<(Multivector, Color, Option<(String, Point)>)> = vec![
-			(a, Color::RED, label("!a", 0.4, 0.2)),
-			(b, Color::GREEN, label("!b", 0.4, 0.2)),
+			(a, Color::RED, label("a", 0.4, 0.2)),
+			(b, Color::GREEN, label("b", 0.4, 0.2)),
+			(c | b, Color::BLUE, None),
 		];
 
 		let b = canvas.local_clip_bounds().unwrap();
