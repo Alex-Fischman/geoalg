@@ -52,21 +52,18 @@ impl skulpin::app::AppHandler for App {
 		let canvas = draw_args.canvas;
 
 		let mouse = canvas.local_to_device_as_3x3().invert().unwrap().map_point(self.mouse);
-		let a = mouse.x * E1 + mouse.y * E2 + E0;
-		let b = -2.0 * E1 + 3.0 * E2 + E0;
+		let a = mouse.x * e1 + mouse.y * e2 + e0;
+		let b = mouse.x * e1 + mouse.y * e2;
+		let c = E1 + E2 + E0;
 
 		let label = |s: &str, x, y| Some((s.to_string(), Point::new(x, y)));
 		let vectors = vec![
-			(a, Color::RED, label("a", 0.0, 0.2)),
-			(b, Color::GREEN, label("b", 0.0, -0.2)),
-			(a + b, Color::CYAN, label("a+b", 0.0, 0.2)),
-			(!(a & b), Color::BLUE, label("!(a^b)", 0.0, -0.2)),
+			(c, Color::CYAN, label("c", 0.0, 0.2)),
+			((a * b) >> c, Color::BLUE, label("transformed c", 0.0, 0.2)),
 		];
 		let bivectors: Vec<(Multivector, Color, Option<(String, Point)>)> = vec![
-			(a & b, Color::BLUE, label("a^b", 0.4, 0.2)),
-			(!a, Color::RED, label("!a", 0.4, 0.2)),
-			(!b, Color::GREEN, label("!b", 0.4, 0.2)),
-			(!a + !b, Color::CYAN, label("!a+!b", 0.4, 0.2)),
+			(a, Color::RED, label("!a", 0.4, 0.2)),
+			(b, Color::GREEN, label("!b", 0.4, 0.2)),
 		];
 
 		let b = canvas.local_clip_bounds().unwrap();

@@ -49,8 +49,7 @@ pub const I: Multivector = Multivector { I: 1.0, ..Z };
 
 impl Multivector {
 	pub fn to_point(self) -> Option<skulpin::skia_safe::Point> {
-		if self.s == 0.0 && self.e0 == 0.0 && self.e1 == 0.0 && self.e2 == 0.0 && self.I == 0.0
-		{
+		if self.grade() == 2 {
 			Some(skulpin::skia_safe::Point::new(
 				self.E1 / self.E0,
 				self.E2 / self.E0,
@@ -139,25 +138,23 @@ impl Sub for Multivector {
 impl Mul for Multivector {
 	type Output = Multivector;
 	fn mul(self, other: Multivector) -> Multivector {
+		let cayley = [
+			[S, e0, e1, e2, E0, E1, E2, I],
+			[e0, Z, E2, -E1, I, Z, Z, Z],
+			[e1, -E2, S, E0, e2, I, -e0, E1],
+			[e2, E1, -E0, S, -e1, e0, I, E2],
+			[E0, I, -e2, e1, -S, -E2, E1, -e0],
+			[E1, Z, I, -e0, E2, Z, Z, Z],
+			[E2, Z, e0, I, -E1, Z, Z, Z],
+			[I, Z, E1, E2, -e0, Z, Z, Z],
+		];
 		self.into_iter()
 			.enumerate()
 			.map(|(i, a)| {
 				other
 					.into_iter()
 					.enumerate()
-					.map(|(j, b)| {
-						a * b
-							* [
-								[S, e0, e1, e2, E0, E1, E2, I],
-								[e0, Z, E2, -E1, I, Z, Z, Z],
-								[e1, -E2, S, E0, e2, I, -e0, E1],
-								[e2, E1, -E0, S, -e1, e0, I, E2],
-								[E0, I, -e2, e1, -S, -E2, E1, -e0],
-								[E1, Z, I, -e0, E2, Z, Z, Z],
-								[E2, Z, e0, I, -E1, Z, Z, Z],
-								[I, Z, E1, E2, -e0, Z, Z, Z],
-							][i][j]
-					})
+					.map(|(j, b)| a * b * cayley[i][j])
 					.reduce(Multivector::add)
 					.unwrap()
 			})
@@ -226,5 +223,27 @@ impl BitAnd for Multivector {
 	type Output = Multivector;
 	fn bitand(self, other: Multivector) -> Multivector {
 		!((!self) ^ (!other))
+	}
+}
+
+impl Multivector {
+	fn reverse(self) -> Multivector {
+		Multivector {
+			s: self.s,
+			e0: self.e0,
+			e1: self.e1,
+			e2: self.e2,
+			E0: -self.E0,
+			E1: -self.E1,
+			E2: -self.E2,
+			I: -self.I,
+		}
+	}
+}
+
+impl Shr for Multivector {
+	type Output = Multivector;
+	fn shr(self, other: Multivector) -> Multivector {
+		self * other * self.reverse()
 	}
 }
