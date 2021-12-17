@@ -1,6 +1,6 @@
 use std::ops::*;
 
-type Scalar = f32;
+pub type Scalar = f32;
 
 #[allow(non_snake_case)]
 #[derive(Clone, Copy, PartialEq)]
@@ -49,7 +49,12 @@ pub const I: Multivector = Multivector { I: 1.0, ..Z };
 
 impl Multivector {
 	pub fn to_point(self) -> Option<skulpin::skia_safe::Point> {
-		if self.grade() == Some(2) {
+		let is_grade_2 = self.s == 0.0
+			&& self.e0 == 0.0
+			&& self.e1 == 0.0
+			&& self.e2 == 0.0
+			&& self.I == 0.0;
+		if is_grade_2 && self.E0 != 0.0 {
 			Some(skulpin::skia_safe::Point::new(
 				self.E1 / self.E0,
 				self.E2 / self.E0,
@@ -155,79 +160,72 @@ impl Multivector {
 impl Mul for Multivector {
 	type Output = Multivector;
 	fn mul(self, other: Multivector) -> Multivector {
-		self.product(other, [
-			[S, e0, e1, e2, E0, E1, E2, I],
-			[e0, Z, E2, -E1, I, Z, Z, Z],
-			[e1, -E2, S, E0, e2, I, -e0, E1],
-			[e2, E1, -E0, S, -e1, e0, I, E2],
-			[E0, I, -e2, e1, -S, -E2, E1, -e0],
-			[E1, Z, I, -e0, E2, Z, Z, Z],
-			[E2, Z, e0, I, -E1, Z, Z, Z],
-			[I, Z, E1, E2, -e0, Z, Z, Z],
-		])
-	}
-}
-
-type Grade = i32;
-
-impl Multivector {
-	fn grade(self) -> Option<Grade> {
-		let has_scalar = self.s != 0.0;
-		let has_vector = self.e0 != 0.0 || self.e1 != 0.0 || self.e2 != 0.0;
-		let has_bivector = self.E0 != 0.0 || self.E1 != 0.0 || self.E2 != 0.0;
-		let has_trivector = self.I != 0.0;
-		match (has_scalar, has_vector, has_bivector, has_trivector) {
-			(true, false, false, false) => Some(0),
-			(false, true, false, false) => Some(1),
-			(false, false, true, false) => Some(2),
-			(false, false, false, true) => Some(3),
-			(false, false, false, false) => Some(0),
-			_ => None,
-		}
+		self.product(
+			other,
+			[
+				[S, e0, e1, e2, E0, E1, E2, I],
+				[e0, Z, E2, -E1, I, Z, Z, Z],
+				[e1, -E2, S, E0, e2, I, -e0, E1],
+				[e2, E1, -E0, S, -e1, e0, I, E2],
+				[E0, I, -e2, e1, -S, -E2, E1, -e0],
+				[E1, Z, I, -e0, E2, Z, Z, Z],
+				[E2, Z, e0, I, -E1, Z, Z, Z],
+				[I, Z, E1, E2, -e0, Z, Z, Z],
+			],
+		)
 	}
 }
 
 impl BitOr for Multivector {
 	type Output = Multivector;
 	fn bitor(self, other: Multivector) -> Multivector {
-		self.product(other, [
-			[S, Z, Z, Z, Z, Z, Z, Z],
-			[e0, Z, Z, Z, Z, Z, Z, Z],
-			[e1, Z, S, Z, Z, Z, Z, Z],
-			[e2, Z, Z, S, Z, Z, Z, Z],
-			[E0, Z, -e2, e1, -S, Z, Z, Z],
-			[E1, Z, Z, -e0, Z, Z, Z, Z],
-			[E2, Z, e0, Z, Z, Z, Z, Z],
-			[I, Z, E1, E2, -e0, Z, Z, Z],
-		])
+		self.product(
+			other,
+			[
+				[S, Z, Z, Z, Z, Z, Z, Z],
+				[e0, Z, Z, Z, Z, Z, Z, Z],
+				[e1, Z, S, Z, Z, Z, Z, Z],
+				[e2, Z, Z, S, Z, Z, Z, Z],
+				[E0, Z, -e2, e1, -S, Z, Z, Z],
+				[E1, Z, Z, -e0, Z, Z, Z, Z],
+				[E2, Z, e0, Z, Z, Z, Z, Z],
+				[I, Z, E1, E2, -e0, Z, Z, Z],
+			],
+		)
 	}
 }
 
 impl BitXor for Multivector {
 	type Output = Multivector;
 	fn bitxor(self, other: Multivector) -> Multivector {
-		self.product(other, [
-			[S, e0, e1, e2, E0, E1, E2, I],
-			[e0, Z, E2, -E1, I, Z, Z, Z],
-			[e1, -E2, Z, E0, Z, I, Z, Z],
-			[e2, E1, -E0, Z, Z, Z, I, Z],
-			[E0, I, Z, Z, Z, Z, Z, Z],
-			[E1, Z, I, Z, Z, Z, Z, Z],
-			[E2, Z, Z, I, Z, Z, Z, Z],
-			[I, Z, Z, Z, Z, Z, Z, Z],
-		])
+		self.product(
+			other,
+			[
+				[S, e0, e1, e2, E0, E1, E2, I],
+				[e0, Z, E2, -E1, I, Z, Z, Z],
+				[e1, -E2, Z, E0, Z, I, Z, Z],
+				[e2, E1, -E0, Z, Z, Z, I, Z],
+				[E0, I, Z, Z, Z, Z, Z, Z],
+				[E1, Z, I, Z, Z, Z, Z, Z],
+				[E2, Z, Z, I, Z, Z, Z, Z],
+				[I, Z, Z, Z, Z, Z, Z, Z],
+			],
+		)
 	}
 }
 
 impl Not for Multivector {
 	type Output = Multivector;
 	fn not(self) -> Multivector {
-		if self.grade() == Some(1) {
-			self.e0 * E0 + self.e1 * E1 + self.e2 * E2
-		} else if self.grade() == Some(2) {
-			self.E0 * e0 + self.E1 * e1 + self.E2 * e2
-		} else {
-			todo!();
+		Multivector {
+			s: self.I,
+			e0: self.E0,
+			e1: self.E1,
+			e2: self.E2,
+			E0: self.e0,
+			E1: self.e1,
+			E2: self.e2,
+			I: self.s,
 		}
 	}
 }

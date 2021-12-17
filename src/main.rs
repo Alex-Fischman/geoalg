@@ -1,6 +1,6 @@
 mod pga;
 
-use pga::*;
+use pga::{Scalar, *};
 use skulpin::skia_safe::*;
 
 fn main() {
@@ -49,26 +49,66 @@ impl skulpin::app::AppHandler for App {
 		let canvas = draw_args.canvas;
 
 		let mouse = canvas.local_to_device_as_3x3().invert().unwrap().map_point(self.mouse);
-		let a = mouse.y * e2 + e0;
-		let b = e1;
-		let c = E1 + E2 + E0;
+		let mouse = mouse.x * E1 + mouse.y * E2 + E0;
 
-		let label = |s: &str, x, y| Some((s.to_string(), Point::new(x, y)));
-		let vectors = vec![
-			(c, Color::CYAN, label("c", 0.0, 0.2)),
-			((a * b) >> c, Color::BLUE, label("transformed c", 0.0, 0.2)),
-		];
-		let bivectors: Vec<(Multivector, Color, Option<(String, Point)>)> = vec![
-			(a, Color::RED, label("a", 0.4, 0.2)),
-			(b, Color::GREEN, label("b", 0.4, 0.2)),
-			(c | b, Color::BLUE, None),
-		];
+		let norm_p = |p: Multivector| {
+			let a: Vec<Scalar> = p.into_iter().collect();
+			(a[5] / a[4]) * E1 + (a[6] / a[4]) * E2 + E0
+		};
+		let norm_l = |l: Multivector| {
+			let a: Vec<Scalar> = l.into_iter().collect();
+			(a[2] / a[1]) * e1 + (a[3] / a[1]) * e2 + e0
+		};
+		let dist_pl = |p, l| (norm_p(p) ^ norm_l(l)).into_iter().collect::<Vec<Scalar>>()[7];
+		let rotor = |p: Multivector, a: Scalar| {
+			let p = p.to_point().unwrap();
+			(a / 2.0).cos() * S + (a / 2.0).sin() * (p.x * E1 + p.y * E2 + E0)
+		};
+		let ngon = |p, n, d, a| -> Vec<Multivector> {
+			(0..n)
+				.map(|i| {
+					rotor(p, a + 2.0 * std::f32::consts::PI * (i as f32) / (n as f32))
+						>> (p + d * E1)
+				})
+				.collect()
+		};
+		let edges = |v: &[Multivector]| -> Vec<Multivector> {
+			v.windows(2).map(|s| s[0] & s[1]).chain(std::iter::once(v[v.len() - 1] & v[0])).collect()
+		};
+		let sat = |a: &[Multivector], b: &[Multivector]| {
+			edges(a).into_iter().chain(edges(b).into_iter()).find(|i| {
+				let da = a.iter().map(|j| dist_pl(*j, *i));
+				let db = b.iter().map(|j| dist_pl(*j, *i));
+				da.clone().into_iter().reduce(Scalar::min).unwrap()
+					> db.clone().into_iter().reduce(Scalar::max).unwrap()
+					|| db.clone().into_iter().reduce(Scalar::min).unwrap()
+						> da.clone().into_iter().reduce(Scalar::max).unwrap()
+			})
+		};
+
+		let a = ngon(mouse, 7, 1.0, 0.0);
+		let b = ngon(E0, 4, 2.0, 1.0);
+		let c = sat(&a, &b);
+
+		let b_color = if let Some(_) = c {
+			Color::GREEN
+		} else {
+			Color::RED
+		};
+
+		let _label = |s: &str, x, y| Some((s.to_string(), Point::new(x, y)));
+		let bivectors: Vec<(Multivector, Color, Option<(String, Point)>)> = edges(&a)
+			.into_iter()
+			.map(|p| (p, Color::BLACK, None))
+			.chain(edges(&b).into_iter().map(|p| (p, b_color, None)))
+			.collect();
+		let vectors: Vec<(Multivector, Color, Option<(String, Point)>)> = a
+			.into_iter()
+			.map(|p| (p, Color::BLACK, None))
+			.chain(b.into_iter().map(|p| (p, b_color, None)))
+			.collect();
 
 		let b = canvas.local_clip_bounds().unwrap();
-		let font = Font::new(
-			Typeface::new("Computer Modern", FontStyle::normal()).unwrap(),
-			Some(18.0),
-		);
 		let mut paint = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
 
 		canvas.clear(Color::WHITE);
@@ -92,6 +132,11 @@ impl skulpin::app::AppHandler for App {
 		paint.set_color(Color::BLACK);
 		canvas.draw_line(Point::new(b.left, 0.0), Point::new(b.right, 0.0), &paint);
 		canvas.draw_line(Point::new(0.0, b.bottom), Point::new(0.0, b.top), &paint);
+
+		let font = Font::new(
+			Typeface::new("Computer Modern", FontStyle::normal()).unwrap(),
+			Some(18.0),
+		);
 
 		paint.set_stroke_width(0.025);
 		for (bv, color, label) in bivectors {
