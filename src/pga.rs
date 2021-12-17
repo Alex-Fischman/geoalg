@@ -258,3 +258,9 @@ impl Shr for Multivector {
 		self * other * self.reverse()
 	}
 }
+
+impl Multivector {
+	pub fn motor(self, a: Scalar) -> Multivector {
+		a.cos() * S + a.sin() * self
+	}
+}

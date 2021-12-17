@@ -25,6 +25,12 @@ fn main() {
 		.run(App::new());
 }
 
+enum Drawable {
+	Point(Multivector, Color),
+	Line(Multivector, Color),
+	Segment(Multivector, Multivector, Color),
+}
+
 struct App {
 	mouse: Point,
 }
@@ -59,54 +65,57 @@ impl skulpin::app::AppHandler for App {
 			let a: Vec<Scalar> = l.into_iter().collect();
 			(a[2] / a[1]) * e1 + (a[3] / a[1]) * e2 + e0
 		};
-		let dist_pl = |p, l| (norm_p(p) ^ norm_l(l)).into_iter().collect::<Vec<Scalar>>()[7];
-		let rotor = |p: Multivector, a: Scalar| {
-			let p = p.to_point().unwrap();
-			(a / 2.0).cos() * S + (a / 2.0).sin() * (p.x * E1 + p.y * E2 + E0)
-		};
-		let ngon = |p, n, d, a| -> Vec<Multivector> {
+		let dist_pl = |p, l| (norm_p(p) & norm_l(l)).into_iter().next().unwrap();
+		let ngon = |p: Multivector, n, d, a| -> Vec<Multivector> {
 			(0..n)
-				.map(|i| {
-					rotor(p, a + 2.0 * std::f32::consts::PI * (i as f32) / (n as f32))
-						>> (p + d * E1)
+				.map(|i| i as f32 / n as f32)
+				.map(|i| p.motor(std::f32::consts::PI * (a + i)) >> (p + d * E2))
+				.collect()
+		};
+		let edges = |v: &[Multivector]| -> Vec<(Multivector, Multivector)> {
+			v.windows(2)
+				.map(|s| (s[0], s[1]))
+				.chain(std::iter::once((v[v.len() - 1], v[0])))
+				.collect()
+		};
+		let sat = |a: &[Multivector], b: &[Multivector]| -> Vec<Multivector> {
+			edges(a)
+				.into_iter()
+				.chain(edges(b).into_iter())
+				.map(|(a, b)| a & b)
+				.filter(|&i| {
+					let da = a.iter().map(|&j| dist_pl(j, i));
+					let db = b.iter().map(|&j| dist_pl(j, i));
+					da.clone().fold(f32::MAX, |a, b| a.min(b))
+						> db.clone().fold(f32::MIN, |a, b| a.max(b))
+						|| db.fold(f32::MAX, |a, b| a.min(b))
+							> da.fold(f32::MIN, |a, b| a.max(b))
 				})
 				.collect()
 		};
-		let edges = |v: &[Multivector]| -> Vec<Multivector> {
-			v.windows(2).map(|s| s[0] & s[1]).chain(std::iter::once(v[v.len() - 1] & v[0])).collect()
-		};
-		let sat = |a: &[Multivector], b: &[Multivector]| {
-			edges(a).into_iter().chain(edges(b).into_iter()).find(|i| {
-				let da = a.iter().map(|j| dist_pl(*j, *i));
-				let db = b.iter().map(|j| dist_pl(*j, *i));
-				da.clone().into_iter().reduce(Scalar::min).unwrap()
-					> db.clone().into_iter().reduce(Scalar::max).unwrap()
-					|| db.clone().into_iter().reduce(Scalar::min).unwrap()
-						> da.clone().into_iter().reduce(Scalar::max).unwrap()
-			})
-		};
 
 		let a = ngon(mouse, 7, 1.0, 0.0);
-		let b = ngon(E0, 4, 2.0, 1.0);
+		let b = ngon(E0, 4, 2.0, 0.25);
 		let c = sat(&a, &b);
 
-		let b_color = if let Some(_) = c {
+		let b_color = if !c.is_empty() {
 			Color::GREEN
 		} else {
 			Color::RED
 		};
 
-		let _label = |s: &str, x, y| Some((s.to_string(), Point::new(x, y)));
-		let bivectors: Vec<(Multivector, Color, Option<(String, Point)>)> = edges(&a)
-			.into_iter()
-			.map(|p| (p, Color::BLACK, None))
-			.chain(edges(&b).into_iter().map(|p| (p, b_color, None)))
-			.collect();
-		let vectors: Vec<(Multivector, Color, Option<(String, Point)>)> = a
-			.into_iter()
-			.map(|p| (p, Color::BLACK, None))
-			.chain(b.into_iter().map(|p| (p, b_color, None)))
-			.collect();
+		let lines_a: Vec<Drawable> =
+			edges(&a).into_iter().map(|(a, b)| Drawable::Segment(a, b, Color::BLACK)).collect();
+		let lines_b: Vec<Drawable> =
+			edges(&b).into_iter().map(|(a, b)| Drawable::Segment(a, b, b_color)).collect();
+		let lines_c: Vec<Drawable> =
+			c.into_iter().map(|c| Drawable::Line(c, Color::GRAY)).collect();
+		let points_a: Vec<Drawable> =
+			a.into_iter().map(|p| Drawable::Point(p, Color::BLACK)).collect();
+		let points_b: Vec<Drawable> =
+			b.into_iter().map(|p| Drawable::Point(p, b_color)).collect();
+		let drawables: Vec<Drawable> =
+			vec![lines_c, lines_a, lines_b, points_a, points_b].into_iter().flatten().collect();
 
 		let b = canvas.local_clip_bounds().unwrap();
 		let mut paint = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
@@ -133,60 +142,34 @@ impl skulpin::app::AppHandler for App {
 		canvas.draw_line(Point::new(b.left, 0.0), Point::new(b.right, 0.0), &paint);
 		canvas.draw_line(Point::new(0.0, b.bottom), Point::new(0.0, b.top), &paint);
 
-		let font = Font::new(
-			Typeface::new("Computer Modern", FontStyle::normal()).unwrap(),
-			Some(18.0),
-		);
-
-		paint.set_stroke_width(0.025);
-		for (bv, color, label) in bivectors {
-			paint.set_color(color);
-			let mut ps: Vec<Point> = vec![
-				1.0 / b.top() * e2,
-				1.0 / b.bottom() * e2,
-				1.0 / b.left() * e1,
-				1.0 / b.right() * e1,
-			]
-			.into_iter()
-			.map(|edge| (edge + e0) ^ bv)
-			.filter_map(|v| v.to_point())
-			.collect();
-			ps.sort_by(|a, b| {
-				a.length().partial_cmp(&b.length()).unwrap_or(std::cmp::Ordering::Equal)
-			});
-			if ps.len() >= 2 {
-				canvas.draw_line(ps[0], ps[1], &paint);
-				if let Some((string, offset)) = label {
-					paint.set_style(paint::Style::Fill);
-					let dir = ps[1] - ps[0];
-					let mut nor = Point::new(dir.y, -dir.x);
-					nor.set_length(offset.y);
-					let midpoint = ps[0] + dir.scaled(offset.x) + nor;
-					let origin = canvas.local_to_device_as_3x3().map_point(midpoint);
-					let r = font.measure_str(&string, Some(&paint)).1;
-					let offset = Point::new(r.width(), -r.height()) / 2.0;
-					canvas.save();
-					canvas.reset_matrix();
-					canvas.draw_str(string, origin - offset, &font, &paint);
-					canvas.restore();
-					paint.set_style(paint::Style::Stroke);
-				}
-			}
-		}
-
 		paint.set_style(paint::Style::Fill);
-		for (v, color, label) in vectors {
-			if let Some(tip) = v.to_point() {
-				paint.set_color(color);
-				canvas.draw_circle(tip, 0.05, &paint);
-				if let Some((string, position)) = label {
-					let origin = canvas.local_to_device_as_3x3().map_point(tip + position);
-					let r = font.measure_str(&string, Some(&paint)).1;
-					let offset = Point::new(r.width(), -r.height()) / 2.0;
-					canvas.save();
-					canvas.reset_matrix();
-					canvas.draw_str(string, origin - offset, &font, &paint);
-					canvas.restore();
+		paint.set_stroke_width(0.025);
+		for d in drawables {
+			match d {
+				Drawable::Point(v, c) => {
+					paint.set_color(c);
+					canvas.draw_circle(v.to_point().unwrap(), 0.05, &paint);
+				}
+				Drawable::Segment(a, b, c) => {
+					paint.set_color(c);
+					canvas.draw_line(a.to_point().unwrap(), b.to_point().unwrap(), &paint);
+				}
+				Drawable::Line(v, c) => {
+					paint.set_color(c);
+					let mut ps: Vec<Point> = [
+						1.0 / b.top() * e2,
+						1.0 / b.bottom() * e2,
+						1.0 / b.left() * e1,
+						1.0 / b.right() * e1,
+					]
+					.into_iter()
+					.map(|edge| (edge + e0) ^ v)
+					.filter_map(|v| v.to_point())
+					.collect();
+					ps.sort_by(|a, b| {
+						a.length().partial_cmp(&b.length()).unwrap_or(std::cmp::Ordering::Equal)
+					});
+					canvas.draw_line(ps[0], ps[1], &paint);
 				}
 			}
 		}
