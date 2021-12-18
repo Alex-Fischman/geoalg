@@ -112,6 +112,38 @@ impl Iterator for MultivectorIterator {
 	}
 }
 
+impl Multivector {
+	fn product(self, other: Multivector, cayley: [[Multivector; 8]; 8]) -> Multivector {
+		self.into_iter()
+			.enumerate()
+			.map(|(i, a)| {
+				other
+					.into_iter()
+					.enumerate()
+					.map(|(j, b)| a * b * cayley[i][j])
+					.fold(Z, Multivector::add)
+			})
+			.fold(Z, Multivector::add)
+	}
+
+	fn reverse(self) -> Multivector {
+		Multivector {
+			s: self.s,
+			e0: self.e0,
+			e1: self.e1,
+			e2: self.e2,
+			E0: -self.E0,
+			E1: -self.E1,
+			E2: -self.E2,
+			I: -self.I,
+		}
+	}
+
+	pub fn motor(self, a: Scalar) -> Multivector {
+		a.cos() * S + a.sin() * self
+	}
+}
+
 impl Add for Multivector {
 	type Output = Multivector;
 	fn add(self, other: Multivector) -> Multivector {
@@ -137,23 +169,6 @@ impl Sub for Multivector {
 	type Output = Multivector;
 	fn sub(self, other: Multivector) -> Multivector {
 		self + -other
-	}
-}
-
-impl Multivector {
-	fn product(self, other: Multivector, cayley: [[Multivector; 8]; 8]) -> Multivector {
-		self.into_iter()
-			.enumerate()
-			.map(|(i, a)| {
-				other
-					.into_iter()
-					.enumerate()
-					.map(|(j, b)| a * b * cayley[i][j])
-					.reduce(Multivector::add)
-					.unwrap()
-			})
-			.reduce(Multivector::add)
-			.unwrap()
 	}
 }
 
@@ -237,30 +252,9 @@ impl BitAnd for Multivector {
 	}
 }
 
-impl Multivector {
-	fn reverse(self) -> Multivector {
-		Multivector {
-			s: self.s,
-			e0: self.e0,
-			e1: self.e1,
-			e2: self.e2,
-			E0: -self.E0,
-			E1: -self.E1,
-			E2: -self.E2,
-			I: -self.I,
-		}
-	}
-}
-
 impl Shr for Multivector {
 	type Output = Multivector;
 	fn shr(self, other: Multivector) -> Multivector {
 		self * other * self.reverse()
-	}
-}
-
-impl Multivector {
-	pub fn motor(self, a: Scalar) -> Multivector {
-		a.cos() * S + a.sin() * self
 	}
 }
