@@ -1,18 +1,18 @@
 use std::ops::*;
 
-pub type Scalar = f32;
+use skulpin::skia_safe::scalar;
 
 #[allow(non_snake_case)]
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy)]
 pub struct Multivector {
-	s: Scalar,
-	e0: Scalar,
-	e1: Scalar,
-	e2: Scalar,
-	E0: Scalar,
-	E1: Scalar,
-	E2: Scalar,
-	I: Scalar,
+	s: scalar,
+	e0: scalar,
+	e1: scalar,
+	e2: scalar,
+	E0: scalar,
+	E1: scalar,
+	E2: scalar,
+	I: scalar,
 }
 
 impl std::fmt::Debug for Multivector {
@@ -66,15 +66,15 @@ impl Multivector {
 }
 
 impl IntoIterator for Multivector {
-	type Item = Scalar;
+	type Item = scalar;
 	type IntoIter = MultivectorIterator;
 	fn into_iter(self) -> MultivectorIterator {
 		MultivectorIterator { m: self, i: 0 }
 	}
 }
 
-impl FromIterator<Scalar> for Multivector {
-	fn from_iter<T: IntoIterator<Item = Scalar>>(i: T) -> Multivector {
+impl FromIterator<scalar> for Multivector {
+	fn from_iter<T: IntoIterator<Item = scalar>>(i: T) -> Multivector {
 		let mut iter = i.into_iter();
 		Multivector {
 			s: iter.next().unwrap(),
@@ -95,8 +95,8 @@ pub struct MultivectorIterator {
 }
 
 impl Iterator for MultivectorIterator {
-	type Item = Scalar;
-	fn next(&mut self) -> Option<Scalar> {
+	type Item = scalar;
+	fn next(&mut self) -> Option<scalar> {
 		self.i += 1;
 		match self.i {
 			1 => Some(self.m.s),
@@ -139,7 +139,7 @@ impl Multivector {
 		}
 	}
 
-	pub fn motor(self, a: Scalar) -> Multivector {
+	pub fn motor(self, a: scalar) -> Multivector {
 		a.cos() * S + a.sin() * self
 	}
 }
@@ -151,7 +151,7 @@ impl Add for Multivector {
 	}
 }
 
-impl Mul<Multivector> for Scalar {
+impl Mul<Multivector> for scalar {
 	type Output = Multivector;
 	fn mul(self, other: Multivector) -> Multivector {
 		other.into_iter().map(|b| self * b).collect()
