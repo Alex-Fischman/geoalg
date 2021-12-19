@@ -1,32 +1,30 @@
+mod app;
 mod pga;
+mod shapes;
 
+use app::*;
 use pga::*;
+use shapes::*;
 use skulpin::app::*;
 use skulpin::skia_safe::*;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 fn main() {
-	let central_polygon = wrap(Polygon { sides: 3, radius: 2.0, center: E0 });
-	let moving_polygon = wrap(Polygon { sides: 5, radius: 1.0, center: E0 });
-	let separating_axes =
-		wrap(SeparatingAxes { a: central_polygon.clone(), b: moving_polygon.clone() });
-	let polygon_mover =
-		wrap(PolygonMover { polygon: moving_polygon.clone(), matrix: Matrix::new_identity() });
+	let central_polygon = RegularPolygon::new(3, 2.0);
+	let moving_polygon = TransformedPolygon::new(RegularPolygon::new(5, 1.0));
+	let separating_axes = SeparatingAxes::new(central_polygon.clone(), moving_polygon.clone());
 	let moving_polygon_fill =
-		wrap(FilledPolygon { polygon: moving_polygon.clone(), sat: separating_axes.clone() });
+		FilledPolygon::new(moving_polygon.clone(), separating_axes.clone());
 	let central_polygon_fill =
-		wrap(FilledPolygon { polygon: central_polygon.clone(), sat: separating_axes.clone() });
-	let app = App {
-		objects: vec![
-			separating_axes,
-			central_polygon_fill,
-			central_polygon,
-			polygon_mover,
-			moving_polygon_fill,
-			moving_polygon,
-		],
-	};
+		FilledPolygon::new(central_polygon.clone(), separating_axes.clone());
+	let polygon_mover = PolygonMover::new(moving_polygon.clone());
+	let app = app::App::new(vec![
+		polygon_mover,
+		separating_axes,
+		central_polygon_fill,
+		central_polygon,
+		moving_polygon_fill,
+		moving_polygon,
+	]);
 
 	let scale = 5.0;
 	AppBuilder::new()
@@ -38,77 +36,15 @@ fn main() {
 		.run(app);
 }
 
-trait Object {
-	fn update(&mut self, _args: &AppUpdateArgs) {}
-	fn draw(&mut self, _args: &mut AppDrawArgs) {}
-}
-
-type Wrapped<T> = Rc<RefCell<T>>;
-
-fn wrap<T>(t: T) -> Wrapped<T> {
-	Rc::new(RefCell::new(t))
-}
-
-struct App {
-	objects: Vec<Wrapped<dyn Object>>,
-}
-
-impl AppHandler for App {
-	fn update(&mut self, mut args: AppUpdateArgs) {
-		for object in &mut self.objects {
-			object.borrow_mut().update(&mut args);
-		}
-	}
-
-	fn draw(&mut self, mut args: AppDrawArgs) {
-		args.canvas.clear(Color::WHITE);
-		for object in &mut self.objects {
-			object.borrow_mut().draw(&mut args);
-		}
-	}
-
-	fn fatal_error(&mut self, _error: &AppError) {}
-}
-
-struct Polygon {
-	sides: usize,
-	radius: scalar,
-	center: Multivector,
-}
-
-impl Polygon {
-	fn points(&self) -> Vec<Multivector> {
-		(0..self.sides)
-			.map(|i| i as f32 / self.sides as f32)
-			.map(|i| {
-				self.center.motor(std::f32::consts::PI * i) >> (self.center + self.radius * E2)
-			})
-			.collect()
-	}
-
-	fn edges(&self) -> Vec<(Multivector, Multivector)> {
-		let mut points = self.points();
-		points.push(points[0]);
-		points.windows(2).map(|s| (s[0], s[1])).collect()
-	}
-}
-
-impl Object for Polygon {
-	fn update(&mut self, _args: &AppUpdateArgs) {}
-
-	fn draw(&mut self, args: &mut AppDrawArgs) {
-		let mut paint = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
-		paint.set_stroke_width(0.025);
-		for (a, b) in self.edges() {
-			args.canvas.draw_line(a.to_point().unwrap(), b.to_point().unwrap(), &paint);
-			args.canvas.draw_circle(a.to_point().unwrap(), 0.05, &paint);
-		}
-	}
-}
-
 struct PolygonMover {
-	polygon: Wrapped<Polygon>,
+	polygon: Wrapped<TransformedPolygon>,
 	matrix: Matrix,
+}
+
+impl PolygonMover {
+	fn new(polygon: Wrapped<TransformedPolygon>) -> Wrapped<PolygonMover> {
+		wrap(PolygonMover { polygon, matrix: Matrix::new_identity() })
+	}
 }
 
 impl Object for PolygonMover {
@@ -116,7 +52,7 @@ impl Object for PolygonMover {
 		if args.input_state.is_mouse_down(MouseButton::Left) {
 			let p = args.input_state.mouse_position();
 			let p = self.matrix.invert().unwrap().map_point(Point::new(p.x as f32, p.y as f32));
-			self.polygon.borrow_mut().center = p.x * E1 + p.y * E2 + E0;
+			self.polygon.borrow_mut().transform = p.y / 2.0 * E1 - p.x / 2.0 * E2 + S;
 		}
 	}
 
@@ -126,11 +62,15 @@ impl Object for PolygonMover {
 }
 
 struct SeparatingAxes {
-	a: Wrapped<Polygon>,
-	b: Wrapped<Polygon>,
+	a: Wrapped<dyn Polygon>,
+	b: Wrapped<dyn Polygon>,
 }
 
 impl SeparatingAxes {
+	fn new(a: Wrapped<dyn Polygon>, b: Wrapped<dyn Polygon>) -> Wrapped<SeparatingAxes> {
+		wrap(SeparatingAxes { a, b })
+	}
+
 	fn axes(&self) -> Vec<Multivector> {
 		let a = self.a.borrow();
 		let b = self.b.borrow();
@@ -150,8 +90,6 @@ impl SeparatingAxes {
 }
 
 impl Object for SeparatingAxes {
-	fn update(&mut self, _args: &AppUpdateArgs) {}
-
 	fn draw(&mut self, args: &mut AppDrawArgs) {
 		let mut paint = Paint::new(Color4f::new(0.5, 0.5, 0.5, 1.0), None);
 		paint.set_stroke_width(0.025);
@@ -174,13 +112,20 @@ impl Object for SeparatingAxes {
 }
 
 struct FilledPolygon {
-	polygon: Wrapped<Polygon>,
+	polygon: Wrapped<dyn Polygon>,
 	sat: Wrapped<SeparatingAxes>,
 }
 
-impl Object for FilledPolygon {
-	fn update(&mut self, _args: &AppUpdateArgs) {}
+impl FilledPolygon {
+	fn new(
+		polygon: Wrapped<dyn Polygon>,
+		sat: Wrapped<SeparatingAxes>,
+	) -> Wrapped<FilledPolygon> {
+		wrap(FilledPolygon { polygon, sat })
+	}
+}
 
+impl Object for FilledPolygon {
 	fn draw(&mut self, args: &mut AppDrawArgs) {
 		let color = if self.sat.borrow().axes().is_empty() {
 			Color4f::new(1.0, 0.0, 0.0, 0.5)

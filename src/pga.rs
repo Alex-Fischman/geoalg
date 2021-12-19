@@ -139,7 +139,7 @@ impl Multivector {
 		}
 	}
 
-	pub fn motor(self, a: scalar) -> Multivector {
+	pub fn rotor(self, a: scalar) -> Multivector {
 		a.cos() * S + a.sin() * self
 	}
 }
