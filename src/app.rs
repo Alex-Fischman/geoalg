@@ -34,3 +34,9 @@ impl AppHandler for App {
 
 	fn fatal_error(&mut self, _error: &AppError) {}
 }
+
+pub fn new_paint(color: Color) -> Paint {
+	let mut paint = Paint::new(Color4f::new(0.0, 0.0, 0.0, 0.0), None);
+	paint.set_color(color);
+	paint
+}

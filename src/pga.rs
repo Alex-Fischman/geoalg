@@ -1,6 +1,6 @@
 use std::ops::*;
 
-use skulpin::skia_safe::scalar;
+pub use skulpin::skia_safe::scalar;
 
 #[allow(non_snake_case)]
 #[derive(Clone, Copy)]
@@ -148,6 +148,12 @@ impl Add for Multivector {
 	type Output = Multivector;
 	fn add(self, other: Multivector) -> Multivector {
 		self.into_iter().zip(other.into_iter()).map(|(a, b)| a + b).collect()
+	}
+}
+
+impl AddAssign for Multivector {
+	fn add_assign(&mut self, other: Multivector) {
+		*self = *self + other;
 	}
 }
 

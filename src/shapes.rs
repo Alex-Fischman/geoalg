@@ -1,6 +1,5 @@
 use crate::app::*;
 use crate::pga::*;
-use skulpin::skia_safe::*;
 
 pub trait Polygon {
 	fn points(&self) -> Vec<Multivector>;
@@ -64,10 +63,10 @@ impl Rectangle {
 impl Polygon for Rectangle {
 	fn points(&self) -> Vec<Multivector> {
 		vec![
-			E0 + self.width * E1 + self.height * E2,
-			E0 - self.width * E1 + self.height * E2,
-			E0 - self.width * E1 - self.height * E2,
-			E0 + self.width * E1 - self.height * E2,
+			E0 + self.width / 2.0 * E1 + self.height / 2.0 * E2,
+			E0 - self.width / 2.0 * E1 + self.height / 2.0 * E2,
+			E0 - self.width / 2.0 * E1 - self.height / 2.0 * E2,
+			E0 + self.width / 2.0 * E1 - self.height / 2.0 * E2,
 		]
 	}
 }
