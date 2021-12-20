@@ -1,18 +1,12 @@
 use skulpin::app::*;
 use skulpin::skia_safe::*;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 pub trait Object {
 	fn update(&mut self, _args: &AppUpdateArgs) {}
 	fn draw(&mut self, _args: &mut AppDrawArgs) {}
 }
 
-pub type Wrapped<T> = Rc<RefCell<T>>;
-
-pub fn wrap<T>(t: T) -> Wrapped<T> {
-	Rc::new(RefCell::new(t))
-}
+pub type Wrapped<T> = std::rc::Rc<std::cell::RefCell<T>>;
 
 pub struct App {
 	objects: Vec<Wrapped<dyn Object>>,

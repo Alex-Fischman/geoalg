@@ -1,6 +1,5 @@
 use crate::app::*;
 use crate::pga::*;
-use skulpin::app::*;
 use skulpin::skia_safe::*;
 
 pub trait Polygon {
@@ -13,50 +12,62 @@ pub trait Polygon {
 	}
 }
 
-impl<T: Polygon> Object for T {
-	fn draw(&mut self, args: &mut AppDrawArgs) {
-		let mut paint = Paint::new(Color4f::new(0.0, 0.0, 0.0, 1.0), None);
-		paint.set_stroke_width(0.025);
-		for (a, b) in self.edges() {
-			args.canvas.draw_line(a.to_point().unwrap(), b.to_point().unwrap(), &paint);
-			args.canvas.draw_circle(a.to_point().unwrap(), 0.05, &paint);
-		}
-	}
+pub fn _collision(a: Wrapped<dyn Polygon>, b: Wrapped<dyn Polygon>) -> bool {
+	let a = a.borrow();
+	let b = b.borrow();
+	a.edges()
+		.into_iter()
+		.chain(b.edges().into_iter())
+		.map(|(a, b)| a & b)
+		.filter(|&i| {
+			let da = a.points().into_iter().map(|j| (j & i).into_iter().next().unwrap());
+			let db = b.points().into_iter().map(|j| (j & i).into_iter().next().unwrap());
+			da.clone().fold(f32::MAX, |a, b| a.min(b))
+				> db.clone().fold(f32::MIN, |a, b| a.max(b))
+				|| db.fold(f32::MAX, |a, b| a.min(b)) > da.fold(f32::MIN, |a, b| a.max(b))
+		})
+		.next()
+		.is_none()
 }
 
-pub struct RegularPolygon {
-	sides: usize,
-	radius: scalar,
-}
-
-impl RegularPolygon {
-	pub fn new(sides: usize, radius: scalar) -> Wrapped<RegularPolygon> {
-		wrap(RegularPolygon { sides, radius })
-	}
-}
-
-impl Polygon for RegularPolygon {
-	fn points(&self) -> Vec<Multivector> {
-		(0..self.sides)
-			.map(|i| i as f32 / self.sides as f32)
-			.map(|i| E0.rotor(std::f32::consts::PI * i) >> (self.radius * E2 + E0))
-			.collect()
-	}
-}
-
-pub struct TransformedPolygon {
+pub struct Transformed {
 	polygon: Wrapped<dyn Polygon>,
 	pub transform: Multivector,
 }
 
-impl TransformedPolygon {
-	pub fn new(polygon: Wrapped<dyn Polygon>) -> Wrapped<TransformedPolygon> {
-		wrap(TransformedPolygon { polygon, transform: S })
+impl Transformed {
+	pub fn new(polygon: Wrapped<dyn Polygon>) -> Wrapped<Transformed> {
+		std::rc::Rc::new(std::cell::RefCell::new(Transformed {
+			polygon,
+			transform: S,
+		}))
 	}
 }
 
-impl Polygon for TransformedPolygon {
+impl Polygon for Transformed {
 	fn points(&self) -> Vec<Multivector> {
 		self.polygon.borrow().points().into_iter().map(|p| self.transform >> p).collect()
+	}
+}
+
+pub struct Rectangle {
+	width: scalar,
+	height: scalar,
+}
+
+impl Rectangle {
+	pub fn new(width: scalar, height: scalar) -> Wrapped<Rectangle> {
+		std::rc::Rc::new(std::cell::RefCell::new(Rectangle { width, height }))
+	}
+}
+
+impl Polygon for Rectangle {
+	fn points(&self) -> Vec<Multivector> {
+		vec![
+			E0 + self.width * E1 + self.height * E2,
+			E0 - self.width * E1 + self.height * E2,
+			E0 - self.width * E1 - self.height * E2,
+			E0 + self.width * E1 - self.height * E2,
+		]
 	}
 }
