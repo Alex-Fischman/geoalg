@@ -42,11 +42,11 @@ impl Player {
 
 impl Object for Player {
 	fn update(&mut self, args: &AppUpdateArgs) {
-		let approx = |a: scalar, b: scalar| (a - b).abs() < scalar::EPSILON * 10.0;
+		let epsilon = scalar::EPSILON * 100.0;
+		let approx = |a: scalar, b: scalar| (a - b).abs() < epsilon;
 		let in_segment = |a: Multivector, b, c| approx(a.dist(c) + c.dist(b), a.dist(b));
-		let in_ray = |p, q, c| in_segment(p, c, q) || approx(p.dist(q) + q.dist(c), p.dist(c));
 
-		let speed = 10.0;
+		let speed = 5.0; // should be at least twice as fast as it is
 		let mut x = args.input_state.is_key_down(VirtualKeyCode::D) as u32 as f32
 			- args.input_state.is_key_down(VirtualKeyCode::A) as u32 as f32;
 		let mut y = args.input_state.is_key_down(VirtualKeyCode::W) as u32 as f32
@@ -80,7 +80,7 @@ impl Object for Player {
 						}
 					})
 					.chain(std::iter::once(q))
-					.filter(|&c| in_ray(p, q, c))
+					.filter(|&c| in_segment(p, q, c))
 					.map(|c| {
 						self.points.push((c, Color::BLUE));
 						c.dist(p)
@@ -90,7 +90,7 @@ impl Object for Player {
 			.reduce(|a, b| a.min(b))
 			.unwrap_or(0.0);
 
-		self.collider.borrow_mut().transform += dist * (y * E1 - x * E2);
+		self.collider.borrow_mut().transform += (dist - epsilon) * (y * E1 - x * E2);
 	}
 
 	fn draw(&mut self, args: &mut AppDrawArgs) {
