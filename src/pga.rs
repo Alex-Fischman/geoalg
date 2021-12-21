@@ -139,6 +139,31 @@ impl Multivector {
 		}
 	}
 
+	fn conjugate(self) -> Multivector {
+		Multivector {
+			s: self.s,
+			e0: -self.e0,
+			e1: -self.e1,
+			e2: -self.e2,
+			E0: -self.E0,
+			E1: -self.E1,
+			E2: -self.E2,
+			I: self.I,
+		}
+	}
+
+	fn length(self) -> scalar {
+		(self * self.conjugate()).s.abs().sqrt()
+	}
+
+	fn normalized(self) -> Multivector {
+		(1.0 / self.length()) * self
+	}
+
+	pub fn dist(self, other: Multivector) -> scalar {
+		(self.normalized() & other.normalized()).length()
+	}
+
 	pub fn motor(self, a: scalar) -> Multivector {
 		a.cos() * S + a.sin() * self
 	}
