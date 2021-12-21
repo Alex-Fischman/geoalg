@@ -10,7 +10,7 @@ use skulpin::skia_safe::*;
 
 fn main() {
 	let ground = Transformed::new(Rectangle::new(5.0, 1.0));
-	ground.borrow_mut().transform = E1.motor(-0.5);
+	ground.borrow_mut().compose(E1.motor(-0.5));
 	let player = Player::new(ground.clone());
 	let objects: Vec<Wrapped<dyn Object>> = vec![Filled::new(ground, Color::BLACK), player];
 
@@ -46,7 +46,7 @@ impl Object for Player {
 		let approx = |a: scalar, b: scalar| (a - b).abs() < epsilon;
 		let in_segment = |a: Multivector, b, c| approx(a.dist(c) + c.dist(b), a.dist(b));
 
-		let speed = 5.0; // should be at least twice as fast as it is
+		let speed = 1.0; // nonlinear
 		let mut x = args.input_state.is_key_down(VirtualKeyCode::D) as u32 as f32
 			- args.input_state.is_key_down(VirtualKeyCode::A) as u32 as f32;
 		let mut y = args.input_state.is_key_down(VirtualKeyCode::W) as u32 as f32
@@ -73,24 +73,21 @@ impl Object for Player {
 					.into_iter()
 					.filter_map(|(a, b)| {
 						let c = (a & b) ^ (p & q);
-						if in_segment(a, b, c) {
+						if in_segment(a, b, c) && in_segment(p, q, c) {
+							self.points.push((c, Color::BLUE));
 							Some(c)
 						} else {
 							None
 						}
 					})
 					.chain(std::iter::once(q))
-					.filter(|&c| in_segment(p, q, c))
-					.map(|c| {
-						self.points.push((c, Color::BLUE));
-						c.dist(p)
-					})
+					.map(|c| c.dist(p))
 					.reduce(|a, b| a.min(b))
 			})
 			.reduce(|a, b| a.min(b))
 			.unwrap_or(0.0);
 
-		self.collider.borrow_mut().transform += (dist - epsilon) * (y * E1 - x * E2);
+		self.collider.borrow_mut().compose(S + (dist - epsilon) * (y * E1 - x * E2));
 	}
 
 	fn draw(&mut self, args: &mut AppDrawArgs) {

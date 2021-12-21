@@ -176,12 +176,6 @@ impl Add for Multivector {
 	}
 }
 
-impl AddAssign for Multivector {
-	fn add_assign(&mut self, other: Multivector) {
-		*self = *self + other;
-	}
-}
-
 impl Mul<Multivector> for scalar {
 	type Output = Multivector;
 	fn mul(self, other: Multivector) -> Multivector {

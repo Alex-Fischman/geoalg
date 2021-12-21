@@ -13,7 +13,7 @@ pub trait Polygon {
 
 pub struct Transformed {
 	polygon: Wrapped<dyn Polygon>,
-	pub transform: Multivector,
+	transform: Multivector,
 }
 
 impl Transformed {
@@ -22,6 +22,10 @@ impl Transformed {
 			polygon,
 			transform: S,
 		}))
+	}
+
+	pub fn compose(&mut self, other: Multivector) {
+		self.transform = other * self.transform;
 	}
 }
 
