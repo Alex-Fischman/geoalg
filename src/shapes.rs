@@ -11,13 +11,13 @@ pub trait Polygon {
 	}
 }
 
-pub struct Transformed {
-	polygon: Wrapped<dyn Polygon>,
+pub struct Transformed<T: Polygon> {
+	polygon: Wrapped<T>,
 	transform: Multivector,
 }
 
-impl Transformed {
-	pub fn new(polygon: Wrapped<dyn Polygon>) -> Wrapped<Transformed> {
+impl<T: Polygon> Transformed<T> {
+	pub fn new(polygon: Wrapped<T>) -> Wrapped<Transformed<T>> {
 		std::rc::Rc::new(std::cell::RefCell::new(Transformed {
 			polygon,
 			transform: S,
@@ -29,7 +29,7 @@ impl Transformed {
 	}
 }
 
-impl Polygon for Transformed {
+impl<T: Polygon> Polygon for Transformed<T> {
 	fn points(&self) -> Vec<Multivector> {
 		self.polygon.borrow().points().into_iter().map(|p| self.transform >> p).collect()
 	}

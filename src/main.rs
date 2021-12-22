@@ -24,14 +24,14 @@ fn main() {
 		.run(app::App::new(objects));
 }
 
-struct Player {
-	collider: Wrapped<Transformed>,
-	ground: Wrapped<dyn Polygon>,
+struct Player<T: Polygon> {
+	collider: Wrapped<Transformed<Rectangle>>,
+	ground: Wrapped<T>,
 	points: Vec<(Multivector, Color)>,
 }
 
-impl Player {
-	fn new(ground: Wrapped<dyn Polygon>) -> Wrapped<Player> {
+impl<T: Polygon> Player<T> {
+	fn new(ground: Wrapped<T>) -> Wrapped<Player<T>> {
 		std::rc::Rc::new(std::cell::RefCell::new(Player {
 			collider: Transformed::new(Rectangle::new(0.25, 0.5)),
 			ground,
@@ -40,7 +40,7 @@ impl Player {
 	}
 }
 
-impl Object for Player {
+impl<T: Polygon> Object for Player<T> {
 	fn update(&mut self, args: &AppUpdateArgs) {
 		let epsilon = scalar::EPSILON * 100.0;
 		let approx = |a: scalar, b: scalar| (a - b).abs() < epsilon;
@@ -104,18 +104,18 @@ impl Object for Player {
 	}
 }
 
-struct Filled {
-	polygon: Wrapped<dyn Polygon>,
+struct Filled<T: Polygon> {
+	polygon: Wrapped<T>,
 	color: Color,
 }
 
-impl Filled {
-	fn new(polygon: Wrapped<dyn Polygon>, color: Color) -> Wrapped<Filled> {
+impl<T: Polygon> Filled<T> {
+	fn new(polygon: Wrapped<T>, color: Color) -> Wrapped<Filled<T>> {
 		std::rc::Rc::new(std::cell::RefCell::new(Filled { polygon, color }))
 	}
 }
 
-impl Object for Filled {
+impl<T: Polygon> Object for Filled<T> {
 	fn draw(&mut self, args: &mut AppDrawArgs) {
 		let points = self.polygon.borrow().points().into_iter().map(|p| p.to_point().unwrap());
 		args.canvas.draw_path(
