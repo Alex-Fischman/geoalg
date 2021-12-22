@@ -153,19 +153,24 @@ impl Multivector {
 	}
 
 	fn length(self) -> scalar {
-		(self * self.conjugate()).s.abs().sqrt()
+		let s = (self * self.conjugate()).s;
+		s.abs().sqrt().copysign(s)
 	}
 
 	fn normalized(self) -> Multivector {
-		(1.0 / self.length()) * self
+		1.0 / self.length() * self
 	}
 
 	pub fn dist(self, other: Multivector) -> scalar {
 		(self.normalized() & other.normalized()).length()
 	}
 
-	pub fn motor(self, a: scalar) -> Multivector {
+	pub fn rotor(self, a: scalar) -> Multivector {
 		a.cos() * S + a.sin() * self
+	}
+
+	pub fn translator(x: scalar, y: scalar) -> Multivector {
+		S - x / 2.0 * E2 + y / 2.0 * E1
 	}
 }
 
