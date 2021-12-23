@@ -12,7 +12,7 @@ fn main() {
 	let ground = Transformed::new(Rectangle::new(5.0, 1.0));
 	ground.borrow_mut().compose(Multivector::translator(0.0, -1.0));
 	let player = Player::new(ground.clone());
-	let objects: Vec<Wrapped<dyn Object>> = vec![Filled::new(ground, Color::BLACK), player];
+	let objects: Vec<Wrapped<dyn Object>> = vec![player, Filled::new(ground, Color::BLACK)];
 
 	let scale = 5.0;
 	AppBuilder::new()
@@ -27,7 +27,6 @@ fn main() {
 struct Player<T: Polygon> {
 	collider: Wrapped<Transformed<Rectangle>>,
 	ground: Wrapped<T>,
-	points: Vec<(Multivector, Color)>,
 	line: Multivector,
 }
 
@@ -36,7 +35,6 @@ impl<T: Polygon> Player<T> {
 		std::rc::Rc::new(std::cell::RefCell::new(Player {
 			collider: Transformed::new(Rectangle::new(0.25, 0.5)),
 			ground,
-			points: vec![],
 			line: Z,
 		}))
 	}
@@ -59,7 +57,6 @@ impl<T: Polygon> Object for Player<T> {
 		}
 
 		let speed = 2.0;
-		self.points = vec![];
 		let l = self
 			.collider
 			.borrow()
@@ -73,13 +70,9 @@ impl<T: Polygon> Object for Player<T> {
 					.into_iter()
 					.filter_map(|(a, b)| {
 						let c = (a & b) ^ (p & q);
-						if let Some(_) = c.to_point() {
-							if in_segment(a, b, c) && in_segment(p, q, c) {
-								self.points.push((c, Color::GREEN));
-								Some(c - epsilon * (x * E1 + y * E2))
-							} else {
-								None
-							}
+						if in_segment(a, b, c) && in_segment(p, q, c) {
+							self.line = a & b;
+							Some(q.projection(a & b))
 						} else {
 							None
 						}
@@ -107,14 +100,6 @@ impl<T: Polygon> Object for Player<T> {
 	}
 
 	fn draw(&mut self, args: &mut AppDrawArgs) {
-		Filled::new(self.collider.clone(), Color::RED).borrow_mut().draw(args);
-
-		for (v, c) in &self.points {
-			if let Some(p) = v.to_point() {
-				args.canvas.draw_circle(p, 0.05, &new_paint(*c));
-			}
-		}
-
 		let b = args.canvas.local_clip_bounds().unwrap();
 		let mut ps: Vec<skia_safe::Point> = [
 			1.0 / b.top() * e2,
@@ -130,6 +115,8 @@ impl<T: Polygon> Object for Player<T> {
 		if ps.len() >= 2 {
 			args.canvas.draw_line(ps[0], ps[1], &new_paint(Color::GRAY));
 		}
+
+		Filled::new(self.collider.clone(), Color::RED).borrow_mut().draw(args);
 	}
 }
 

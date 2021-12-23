@@ -164,6 +164,14 @@ impl Multivector {
 		(self.normalized() & other.normalized()).length()
 	}
 
+	pub fn projection(self, other: Multivector) -> Multivector {
+		(self | other) * other.reverse()
+	}
+
+	pub fn rejection(self, other: Multivector) -> Multivector {
+		(self ^ other) * other.reverse()
+	}
+
 	pub fn rotor(self, a: scalar) -> Multivector {
 		a.cos() * S + a.sin() * self
 	}
