@@ -76,7 +76,7 @@ impl<T: Polygon> Object for Player<T> {
 						if let Some(_) = c.to_point() {
 							if in_segment(a, b, c) && in_segment(p, q, c) {
 								self.points.push((c, Color::GREEN));
-								Some(c)
+								Some(c - epsilon * (x * E1 + y * E2))
 							} else {
 								None
 							}
