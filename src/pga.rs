@@ -152,12 +152,11 @@ impl Multivector {
 		}
 	}
 
-	fn length(self) -> scalar {
-		let s = (self * self.conjugate()).s;
-		s.abs().sqrt().copysign(s)
+	pub fn length(self) -> scalar {
+		(self * self.conjugate()).s.abs().sqrt()
 	}
 
-	fn normalized(self) -> Multivector {
+	pub fn normalized(self) -> Multivector {
 		1.0 / self.length() * self
 	}
 
