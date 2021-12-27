@@ -1,142 +1,70 @@
-mod app;
-mod pga;
-mod shapes;
+use std::ops::*;
 
-use app::*;
-use pga::*;
-use shapes::*;
-use skulpin::app::*;
-use skulpin::skia_safe::*;
+type Scalar = f32;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Vector<const P: usize, const N: usize, const Z: usize> {
+	p: [Scalar; P],
+	n: [Scalar; N],
+	z: [Scalar; Z],
+}
+
+use std::iter::Chain;
+use std::array::IntoIter;
+impl<const P: usize, const N: usize, const Z: usize> IntoIterator for Vector<P, N, Z> {
+    type Item = Scalar;
+    type IntoIter = Chain<Chain<IntoIter<f32, P>, IntoIter<f32, N>>, IntoIter<f32, Z>>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.p.into_iter().chain(self.n).chain(self.z)
+    }
+}
+
+impl<const P: usize, const N: usize, const Z: usize> FromIterator<Scalar> for Vector<P, N, Z> {
+    fn from_iter<I: IntoIterator<Item=Scalar>>(i: I) -> Self {
+        let mut iter = i.into_iter();
+        Vector {
+            p: iter.by_ref().take(P).collect::<Vec<_>>().try_into().unwrap(),
+            n: iter.by_ref().take(N).collect::<Vec<_>>().try_into().unwrap(),
+            z: iter.by_ref().take(Z).collect::<Vec<_>>().try_into().unwrap(),
+        }
+    }
+}
+
+impl<const P: usize, const N: usize, const Z: usize> Add for Vector<P, N, Z> {
+	type Output = Self;
+	fn add(self, other: Self) -> Self::Output {
+        self.into_iter().zip(other).map(|(a, b)| a + b).collect()
+	}
+}
+
+impl<const P: usize, const N: usize, const Z: usize> Mul<Vector<P, N, Z>> for Scalar {
+	type Output = Vector<P, N, Z>;
+	fn mul(self, other: Self::Output) -> Self::Output {
+        other.into_iter().map(|a| self * a).collect()
+	}
+}
+
+impl<const P: usize, const N: usize, const Z: usize> BitOr for Vector<P, N, Z> {
+	type Output = Scalar;
+	fn bitor(self, other: Self) -> Self::Output {
+		self.p.iter().zip(other.p).map(|(a, b)| a * b).fold(0.0, Scalar::add)
+			- self.n.iter().zip(other.n).map(|(a, b)| a * b).fold(0.0, Scalar::add)
+	}
+}
+
+impl<const P: usize, const N: usize, const Z: usize> Normed for Vector<P, N, Z> {}
+
+trait Normed: Copy + BitOr<Output = Scalar> {
+    fn norm(self) -> Scalar {
+        (self | self).abs().sqrt()
+    }
+}
 
 fn main() {
-	let ground = Transformed::new(Rectangle::new(5.0, 1.0));
-	ground.borrow_mut().compose(Multivector::translator(0.0, -1.0));
-	let player = Player::new(ground.clone());
-	let objects: Vec<Wrapped<dyn Object>> = vec![player, Filled::new(ground, Color::BLACK)];
+	let x = Vector { p: [1.0, 0.0], n: [], z: [0.0] };
+	let y = Vector { p: [0.0, 1.0], n: [], z: [0.0] };
 
-	let scale = 5.0;
-	AppBuilder::new()
-		.coordinate_system(skulpin::CoordinateSystem::VisibleRange(
-			Rect::new(-scale, scale, scale, -scale),
-			skulpin::skia_safe::matrix::ScaleToFit::Center,
-		))
-		.window_title("Geometric Algebra")
-		.run(app::App::new(objects));
-}
+	assert_eq!((3.0 * x + 4.0 * y).norm(), 5.0);
 
-struct Player<T: Polygon> {
-	collider: Wrapped<Transformed<Rectangle>>,
-	ground: Wrapped<T>,
-	line: Multivector,
-}
-
-impl<T: Polygon> Player<T> {
-	fn new(ground: Wrapped<T>) -> Wrapped<Player<T>> {
-		std::rc::Rc::new(std::cell::RefCell::new(Player {
-			collider: Transformed::new(Rectangle::new(0.25, 0.5)),
-			ground,
-			line: Z,
-		}))
-	}
-}
-
-impl<T: Polygon> Object for Player<T> {
-	fn update(&mut self, args: &AppUpdateArgs) {
-		let epsilon = scalar::EPSILON * 100.0;
-		let approx = |a: scalar, b: scalar| (a - b).abs() < epsilon;
-		let in_segment = |a: Multivector, b, c| approx(a.dist(c) + c.dist(b), a.dist(b));
-
-		let mut x = args.input_state.is_key_down(VirtualKeyCode::D) as u32 as f32
-			- args.input_state.is_key_down(VirtualKeyCode::A) as u32 as f32;
-		let mut y = args.input_state.is_key_down(VirtualKeyCode::W) as u32 as f32
-			- args.input_state.is_key_down(VirtualKeyCode::S) as u32 as f32;
-		let r = (x * x + y * y).sqrt();
-		if r > 1.0 {
-			x /= r;
-			y /= r;
-		}
-
-		let speed = 2.0;
-		let l = self
-			.collider
-			.borrow()
-			.points()
-			.into_iter()
-			.filter_map(|p| {
-				let q = p + speed * args.time_state.previous_update_dt() * (x * E1 + y * E2);
-				self.ground
-					.borrow()
-					.edges()
-					.into_iter()
-					.filter_map(|(a, b)| {
-						let c = (a & b) ^ (p & q);
-						if in_segment(a, b, c) && in_segment(p, q, c) {
-							self.line = a & b;
-							Some(q.projection(a & b))
-						} else {
-							None
-						}
-					})
-					.chain(std::iter::once(q))
-					.map(|c| c.normalized() & p.normalized())
-					.reduce(|a, b| {
-						if a.length() < b.length() {
-							a
-						} else {
-							b
-						}
-					})
-			})
-			.reduce(|a, b| {
-				if a.length() < b.length() {
-					a
-				} else {
-					b
-				}
-			})
-			.unwrap_or(Z);
-
-		self.collider.borrow_mut().compose(S + 0.5 * E0 * (e0 ^ l));
-	}
-
-	fn draw(&mut self, args: &mut AppDrawArgs) {
-		let b = args.canvas.local_clip_bounds().unwrap();
-		let mut ps: Vec<skia_safe::Point> = [
-			1.0 / b.top() * e2,
-			1.0 / b.bottom() * e2,
-			1.0 / b.left() * e1,
-			1.0 / b.right() * e1,
-		]
-		.into_iter()
-		.map(|edge| (edge + e0) ^ self.line)
-		.filter_map(|v| v.to_point())
-		.collect();
-		ps.sort_by(|a, b| a.length().partial_cmp(&b.length()).unwrap());
-		if ps.len() >= 2 {
-			args.canvas.draw_line(ps[0], ps[1], &new_paint(Color::GRAY));
-		}
-
-		Filled::new(self.collider.clone(), Color::RED).borrow_mut().draw(args);
-	}
-}
-
-struct Filled<T: Polygon> {
-	polygon: Wrapped<T>,
-	color: Color,
-}
-
-impl<T: Polygon> Filled<T> {
-	fn new(polygon: Wrapped<T>, color: Color) -> Wrapped<Filled<T>> {
-		std::rc::Rc::new(std::cell::RefCell::new(Filled { polygon, color }))
-	}
-}
-
-impl<T: Polygon> Object for Filled<T> {
-	fn draw(&mut self, args: &mut AppDrawArgs) {
-		let points = self.polygon.borrow().points().into_iter().map(|p| p.to_point().unwrap());
-		args.canvas.draw_path(
-			&Path::polygon(&points.collect::<Vec<Point>>(), true, None, None),
-			&new_paint(self.color),
-		);
-	}
+	println!("Hello, world!");
 }
