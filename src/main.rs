@@ -9,38 +9,38 @@ struct Vector<const P: usize, const N: usize, const Z: usize> {
 	z: [Scalar; Z],
 }
 
-use std::iter::Chain;
 use std::array::IntoIter;
+use std::iter::Chain;
 impl<const P: usize, const N: usize, const Z: usize> IntoIterator for Vector<P, N, Z> {
-    type Item = Scalar;
-    type IntoIter = Chain<Chain<IntoIter<f32, P>, IntoIter<f32, N>>, IntoIter<f32, Z>>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.p.into_iter().chain(self.n).chain(self.z)
-    }
+	type Item = Scalar;
+	type IntoIter = Chain<Chain<IntoIter<f32, P>, IntoIter<f32, N>>, IntoIter<f32, Z>>;
+	fn into_iter(self) -> Self::IntoIter {
+		self.p.into_iter().chain(self.n).chain(self.z)
+	}
 }
 
 impl<const P: usize, const N: usize, const Z: usize> FromIterator<Scalar> for Vector<P, N, Z> {
-    fn from_iter<I: IntoIterator<Item=Scalar>>(i: I) -> Self {
-        let mut iter = i.into_iter();
-        Vector {
-            p: iter.by_ref().take(P).collect::<Vec<_>>().try_into().unwrap(),
-            n: iter.by_ref().take(N).collect::<Vec<_>>().try_into().unwrap(),
-            z: iter.by_ref().take(Z).collect::<Vec<_>>().try_into().unwrap(),
-        }
-    }
+	fn from_iter<I: IntoIterator<Item = Scalar>>(i: I) -> Self {
+		let mut iter = i.into_iter();
+		Vector {
+			p: iter.by_ref().take(P).collect::<Vec<_>>().try_into().unwrap(),
+			n: iter.by_ref().take(N).collect::<Vec<_>>().try_into().unwrap(),
+			z: iter.by_ref().take(Z).collect::<Vec<_>>().try_into().unwrap(),
+		}
+	}
 }
 
 impl<const P: usize, const N: usize, const Z: usize> Add for Vector<P, N, Z> {
 	type Output = Self;
 	fn add(self, other: Self) -> Self::Output {
-        self.into_iter().zip(other).map(|(a, b)| a + b).collect()
+		self.into_iter().zip(other).map(|(a, b)| a + b).collect()
 	}
 }
 
 impl<const P: usize, const N: usize, const Z: usize> Mul<Vector<P, N, Z>> for Scalar {
 	type Output = Vector<P, N, Z>;
 	fn mul(self, other: Self::Output) -> Self::Output {
-        other.into_iter().map(|a| self * a).collect()
+		other.into_iter().map(|a| self * a).collect()
 	}
 }
 
@@ -55,9 +55,9 @@ impl<const P: usize, const N: usize, const Z: usize> BitOr for Vector<P, N, Z> {
 impl<const P: usize, const N: usize, const Z: usize> Normed for Vector<P, N, Z> {}
 
 trait Normed: Copy + BitOr<Output = Scalar> {
-    fn norm(self) -> Scalar {
-        (self | self).abs().sqrt()
-    }
+	fn norm(self) -> Scalar {
+		(self | self).abs().sqrt()
+	}
 }
 
 fn main() {
