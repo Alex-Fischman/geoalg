@@ -50,9 +50,9 @@ impl Polygon for Rectangle {
 	fn points(&self) -> Vec<Multivector> {
 		vec![
 			E0 + self.width / 2.0 * E1 + self.height / 2.0 * E2,
-			E0 - self.width / 2.0 * E1 + self.height / 2.0 * E2,
-			E0 - self.width / 2.0 * E1 - self.height / 2.0 * E2,
-			E0 + self.width / 2.0 * E1 - self.height / 2.0 * E2,
+			E0 + self.width / -2.0 * E1 + self.height / 2.0 * E2,
+			E0 + self.width / -2.0 * E1 + self.height / -2.0 * E2,
+			E0 + self.width / 2.0 * E1 + self.height / -2.0 * E2,
 		]
 	}
 }

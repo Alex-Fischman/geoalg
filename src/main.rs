@@ -27,7 +27,6 @@ fn main() {
 struct Player<T: Polygon> {
 	collider: Wrapped<Transformed<Rectangle>>,
 	ground: Wrapped<T>,
-	line: Multivector,
 }
 
 impl<T: Polygon> Player<T> {
@@ -35,7 +34,6 @@ impl<T: Polygon> Player<T> {
 		std::rc::Rc::new(std::cell::RefCell::new(Player {
 			collider: Transformed::new(Rectangle::new(0.25, 0.5)),
 			ground,
-			line: Z,
 		}))
 	}
 }
@@ -71,51 +69,22 @@ impl<T: Polygon> Object for Player<T> {
 					.filter_map(|(a, b)| {
 						let c = (a & b) ^ (p & q);
 						if in_segment(a, b, c) && in_segment(p, q, c) {
-							self.line = a & b;
-							Some(q.projection(a & b))
+							Some(c)
 						} else {
 							None
 						}
 					})
 					.chain(std::iter::once(q))
-					.map(|c| c.normalized() & p.normalized())
-					.reduce(|a, b| {
-						if a.length() < b.length() {
-							a
-						} else {
-							b
-						}
-					})
+					.map(|c| c & p)
+					.reduce(|a, b| if a.length() < b.length() { a } else { b })
 			})
-			.reduce(|a, b| {
-				if a.length() < b.length() {
-					a
-				} else {
-					b
-				}
-			})
+			.reduce(|a, b| if a.length() < b.length() { a } else { b })
 			.unwrap_or(Z);
 
 		self.collider.borrow_mut().compose(S + 0.5 * E0 * (e0 ^ l));
 	}
 
 	fn draw(&mut self, args: &mut AppDrawArgs) {
-		let b = args.canvas.local_clip_bounds().unwrap();
-		let mut ps: Vec<skia_safe::Point> = [
-			1.0 / b.top() * e2,
-			1.0 / b.bottom() * e2,
-			1.0 / b.left() * e1,
-			1.0 / b.right() * e1,
-		]
-		.into_iter()
-		.map(|edge| (edge + e0) ^ self.line)
-		.filter_map(|v| v.to_point())
-		.collect();
-		ps.sort_by(|a, b| a.length().partial_cmp(&b.length()).unwrap());
-		if ps.len() >= 2 {
-			args.canvas.draw_line(ps[0], ps[1], &new_paint(Color::GRAY));
-		}
-
 		Filled::new(self.collider.clone(), Color::RED).borrow_mut().draw(args);
 	}
 }

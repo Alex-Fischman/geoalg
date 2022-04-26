@@ -177,7 +177,7 @@ impl Multivector {
 	}
 
 	pub fn translator(x: scalar, y: scalar) -> Multivector {
-		S - x / 2.0 * E2 + y / 2.0 * E1
+		S + x / -2.0 * E2 + y / 2.0 * E1
 	}
 }
 
@@ -199,13 +199,6 @@ impl Neg for Multivector {
 	type Output = Multivector;
 	fn neg(self) -> Multivector {
 		-1.0 * self
-	}
-}
-
-impl Sub for Multivector {
-	type Output = Multivector;
-	fn sub(self, other: Multivector) -> Multivector {
-		self + -other
 	}
 }
 
